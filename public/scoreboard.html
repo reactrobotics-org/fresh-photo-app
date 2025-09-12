@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scoreboard - Photo Submission App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <h1><a href="/">Photo Submission App</a></h1>
+        <div class="nav-links">
+            <a href="/" class="btn">Home</a>
+            <a href="/submit" class="btn">Submit Photo</a>
+            <a href="/my-submissions" class="btn">My Photos</a>
+            <button id="logoutBtn" class="btn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div style="background: white; border-radius: 15px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); overflow: hidden; margin-bottom: 2rem;">
+            <div style="background: linear-gradient(135deg, #3498db, #2980b9); color: white; padding: 2rem; text-align: center;">
+                <h2 style="margin: 0; font-size: 2rem;">🏆 Entry Scoreboard</h2>
+                <p style="margin-top: 0.5rem; opacity: 0.9; font-size: 1.1rem;">Community rankings by entry submissions</p>
+            </div>
+            
+            <div id="scoreboard-content">
+                <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+                    Loading scoreboard...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        try {
+            const response = await fetch('/api/logout', {
+                method: 'POST',
+            });
+            
+            if (response.ok) {
+                window.location.href = '/';
+            }
+        } catch (error) {
+            console.error('Logout failed:', error);
+        }
+    });
+    
+    // Load scoreboard
+    fetch('/api/scoreboard')
+    .then(response => response.json())
+    .then(users => {
+        const contentDiv = document.getElementById('scoreboard-content');
+        let html = '<div style="padding: 0; margin: 0; list-style: none;">';
+        
+        users.forEach((user, index) => {
+            const rank = index + 1;
+            let trophy = '';
+            
+            if (rank === 1) trophy = '🥇';
+            else if (rank === 2) trophy = '🥈';
+            else if (rank === 3) trophy = '🥉';
+            
+            const userInitial = user.username.charAt(0).toUpperCase();
+            const lastSubmissionText = user.last_submission 
+                ? 'Last entry: ' + new Date(user.last_submission).toLocaleDateString()
+                : 'No entries yet';
+            
+            html += `
+                <div style="display: flex; align-items: center; padding: 1.5rem 2rem; border-bottom: 1px solid #ecf0f1;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #7f8c8d; min-width: 60px; text-align: center;">
+                        ${trophy} ${rank}
+                    </div>
+                    <div style="width: 50px; height: 50px; border-radius: 50%; background: #3498db; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.4rem; margin: 0 1.5rem;">
+                        ${userInitial}
+                    </div>
+                    <div style="flex: 1;">
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #2c3e50; margin-bottom: 0.3rem;">${user.username}</div>
+                        <div style="color: #7f8c8d; font-size: 0.95rem;">${user.email}</div>
+                        <div style="color: #95a5a6; font-size: 0.85rem; margin-top: 0.2rem;">${lastSubmissionText}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 2rem; font-weight: bold; color: #3498db; display: block;">${user.submission_count}</span>
+                        <span style="color: #7f8c8d; font-size: 0.9rem;">${user.submission_count === 1 ? 'entry' : 'entries'}</span>
+                    </div>
+                </div>
+            `;
+        });
+        
+        const totalSubmissions = users.reduce((sum, user) => sum + user.submission_count, 0);
+        html += '</div>';
+        html += `<div style="background: #f8f9fa; padding: 1.5rem 2rem; text-align: center; color: #7f8c8d; border-top: 1px solid #ecf0f1;"><strong>${users.length}</strong> photographers have shared <strong>${totalSubmissions}</strong> entries total</div>`;
+        
+        contentDiv.innerHTML = html;
+    });
+    </script>
+</body>
+</html>

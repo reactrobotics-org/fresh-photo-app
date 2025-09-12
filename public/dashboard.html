@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Photo Submission App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav>
+        <h1>Photo Submission App</h1>
+        <div class="nav-links">
+            <a href="/submit" class="btn">New Submission</a>
+            <a href="/my-submissions" class="btn">My Submissions</a>
+            <button id="logoutBtn" class="btn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>Welcome to your Dashboard!</h2>
+        <p>You can now create new photo submissions or view your existing ones.</p>
+        <div class="dashboard-actions">
+            <a href="/submit" class="btn btn-primary btn-large">Create New Submission</a>
+            <a href="/my-submissions" class="btn btn-large">View My Submissions</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+    </script>
+</body>
+</html>

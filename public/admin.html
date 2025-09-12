@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Photo Submission App</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-section {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .admin-tabs {
+            display: flex;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #ecf0f1;
+        }
+
+        .admin-tab {
+            padding: 1rem 2rem;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .admin-tab.active {
+            border-bottom-color: #3498db;
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .group-card {
+            border: 2px solid #ecf0f1;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+
+        .group-card:hover {
+            border-color: #3498db;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
+        }
+
+        .group-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .group-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .member-count {
+            background: #3498db;
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
+            font-size: 0.9rem;
+        }
+
+        .user-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .user-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .user-card.member {
+            background: #d4edda;
+            border-color: #27ae60;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .username {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .user-email {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.9rem;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #219a52;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .form-inline {
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+            margin-bottom: 2rem;
+        }
+
+        .form-inline .form-group {
+            margin-bottom: 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <h1><a href="/">Photo Submission App</a></h1>
+        <div class="nav-links">
+            <a href="/" class="btn">Home</a>
+            <a href="/submit" class="btn">New Submission</a>
+            <a href="/my-submissions" class="btn">My Submissions</a>
+            <button id="logoutBtn" class="btn">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2>🔧 Admin Dashboard</h2>
+        
+        <div class="admin-tabs">
+            <div class="admin-tab active" onclick="showTab('groups')">Groups</div>
+            <div class="admin-tab" onclick="showTab('users')">Users</div>
+        </div>
+
+        <div id="groups-tab" class="tab-content active">
+            <div class="admin-section">
+                <h3>Create New Group</h3>
+                <form id="createGroupForm" class="form-inline">
+                    <div class="form-group">
+                        <label for="groupName">Group Name:</label>
+                        <input type="text" id="groupName" name="groupName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="groupDescription">Description:</label>
+                        <input type="text" id="groupDescription" name="groupDescription" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Create Group</button>
+                </form>
+            </div>
+
+            <div class="admin-section">
+                <h3>Manage Groups</h3>
+                <div id="groups-container" class="loading">Loading groups...</div>
+            </div>
+        </div>
+
+        <div id="users-tab" class="tab-content">
+            <div class="admin-section">
+                <h3>All Users</h3>
+                <div id="users-container" class="loading">Loading users...</div>
+            </div>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        let allUsers = [];
+        let allGroups = [];
+
+        // Tab switching
+        function showTab(tabName) {
+            document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        // Load initial data
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                allUsers = await response.json();
+                displayUsers();
+            } catch (error) {
+                document.getElementById('users-container').innerHTML = '<div class="error">Failed to load users</div>';
+            }
+        }
+
+        async function loadGroups() {
+            try {
+                const response = await fetch('/api/admin/groups');
+                allGroups = await response.json();
+                displayGroups();
+            } catch (error) {
+                document.getElementById('groups-container').innerHTML = '<div class="error">Failed to load groups</div>';
+            }
+        }
+
+        function displayUsers() {
+            const container = document.getElementById('users-container');
+            if (allUsers.length === 0) {
+                container.innerHTML = '<p>No users found.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="user-list">
+                    ${allUsers.map(user => `
+                        <div class="user-card">
+                            <div class="user-info">
+                                <div class="username">${user.username} ${user.is_admin ? '👑' : ''}</div>
+                                <div class="user-email">${user.email}</div>
+                                <div style="font-size: 0.8em; color: #999;">
+                                    Joined: ${new Date(user.created_at).toLocaleDateString()}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function displayGroups() {
+            const container = document.getElementById('groups-container');
+            if (allGroups.length === 0) {
+                container.innerHTML = '<p>No groups found. Create your first group above!</p>';
+                return;
+            }
+
+            container.innerHTML = allGroups.map(group => `
+                <div class="group-card">
+                    <div class="group-header">
+                        <div>
+                            <div class="group-name">${group.name}</div>
+                            <div style="color: #666; margin-top: 0.5rem;">${group.description}</div>
+                            <div style="font-size: 0.9em; color: #999; margin-top: 0.5rem;">
+                                Created by: ${group.created_by_username || 'Unknown'}
+                            </div>
+                        </div>
+                        <span class="member-count">${group.member_count} members</span>
+                    </div>
+                    <button onclick="manageGroupMembers(${group.id}, '${group.name}')" class="btn btn-primary btn-small">
+                        Manage Members
+                    </button>
+                    <div id="members-${group.id}" style="display: none; margin-top: 1rem;"></div>
+                </div>
+            `).join('');
+        }
+
+        async function manageGroupMembers(groupId, groupName) {
+            const membersDiv = document.getElementById(`members-${groupId}`);
+            
+            if (membersDiv.style.display === 'none') {
+                try {
+                    const response = await fetch(`/api/admin/group-members/${groupId}`);
+                    const users = await response.json();
+                    
+                    membersDiv.innerHTML = `
+                        <h4>Members of "${groupName}"</h4>
+                        <div class="user-list">
+                            ${users.map(user => `
+                                <div class="user-card ${user.is_member ? 'member' : ''}">
+                                    <div class="user-info">
+                                        <div class="username">${user.username}</div>
+                                        <div class="user-email">${user.email}</div>
+                                        ${user.is_member && user.added_at ? `<div style="font-size: 0.8em; color: #27ae60;">Added: ${new Date(user.added_at).toLocaleDateString()}</div>` : ''}
+                                    </div>
+                                    ${user.is_member ? 
+                                        `<button onclick="removeUserFromGroup(${user.id}, ${groupId})" class="btn btn-danger btn-small">Remove</button>` :
+                                        `<button onclick="addUserToGroup(${user.id}, ${groupId})" class="btn btn-success btn-small">Add</button>`
+                                    }
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    membersDiv.style.display = 'block';
+                } catch (error) {
+                    showMessage('Failed to load group members', 'error');
+                }
+            } else {
+                membersDiv.style.display = 'none';
+            }
+        }
+
+        async function addUserToGroup(userId, groupId) {
+            try {
+                const response = await fetch('/api/admin/add-user-to-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, groupId })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('User added to group successfully!', 'success');
+                    loadGroups();
+                    // Refresh the member list
+                    const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
+                    if (membersDiv.style.display !== 'none') {
+                        membersDiv.style.display = 'none';
+                        manageGroupMembers(groupId, '');
+                    }
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to add user to group', 'error');
+            }
+        }
+
+        async function removeUserFromGroup(userId, groupId) {
+            try {
+                const response = await fetch('/api/admin/remove-user-from-group', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, groupId })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('User removed from group successfully!', 'success');
+                    loadGroups();
+                    // Refresh the member list
+                    const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
+                    if (membersDiv.style.display !== 'none') {
+                        membersDiv.style.display = 'none';
+                        manageGroupMembers(groupId, '');
+                    }
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to remove user from group', 'error');
+            }
+        }
+
+        // Create new group
+        document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData);
+            
+            try {
+                const response = await fetch('/api/admin/groups', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('Group created successfully!', 'success');
+                    e.target.reset();
+                    loadGroups();
+                } else {
+                    showMessage(result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('Failed to create group', 'error');
+            }
+        });
+
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                messageDiv.innerHTML = '';
+            }, 3000);
+        }
+
+        // Logout functionality
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/logout', {
+                    method: 'POST',
+                });
+                
+                if (response.ok) {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        });
+
+        // Load initial data
+        loadUsers();
+        loadGroups();
+    </script>
+</body>
+</html>
