@@ -270,10 +270,10 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
         
         console.log('Cloudinary upload successful:', result.public_id);
 
-        // Save to database with explicit NULL for photo_path
+        // Save to database with placeholder for photo_path (since it's NOT NULL)
         await pool.query(
             'INSERT INTO submissions (user_id, photo_path, photo_url, cloudinary_id, description) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.userId, null, result.secure_url, result.public_id, description]
+            [req.session.userId, 'cloudinary', result.secure_url, result.public_id, description]
         );
         
         res.json({ success: true });
