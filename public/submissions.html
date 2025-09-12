@@ -6,6 +6,19 @@
     <title>My Submissions - Photo Submission App</title>
     <link rel="stylesheet" href="styles.css">
     <style>
+        .user-info-bar {
+            background: #34495e;
+            color: white;
+            padding: 0.5rem 2rem;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+
+        .user-info-bar .username {
+            font-weight: bold;
+            color: #3498db;
+        }
+
         .submission-card {
             border: 2px solid #ddd;
             border-radius: 15px;
@@ -123,6 +136,9 @@
     </style>
 </head>
 <body>
+    <div class="user-info-bar" id="userInfoBar" style="display: none;">
+        Logged in as <span class="username" id="loggedInUsername"></span>
+    </div>
     <nav>
         <h1><a href="/">Photo Submission App</a></h1>
         <div class="nav-links">
@@ -138,46 +154,69 @@
     </div>
 
     <script>
+        // Load and display username
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info');
+                if (response.ok) {
+                    const userData = await response.json();
+                    document.getElementById('loggedInUsername').textContent = userData.username;
+                    document.getElementById('userInfoBar').style.display = 'block';
+                } else {
+                    console.log('User info response status:', response.status);
+                }
+            } catch (error) {
+                console.log('Could not load user info:', error);
+            }
+        }
+
         // Load submissions
         async function loadSubmissions() {
             try {
                 const response = await fetch('/api/my-submissions');
-                const submissions = await response.json();
-                
-                const container = document.getElementById('submissions-container');
-                
-                if (submissions.length === 0) {
-                    container.innerHTML = `
-                        <div class="no-submissions">
-                            <h3>No submissions yet</h3>
-                            <p>Start sharing your photos and stories!</p>
-                            <a href="/submit">Create your first submission</a>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                container.innerHTML = submissions.map((submission, index) => {
-                    const isLeftImage = index % 2 === 0;
-                    const layoutClass = isLeftImage ? 'left-image' : 'right-image';
+                if (response.ok) {
+                    const submissions = await response.json();
                     
-                    return `
-                        <div class="submission-card ${layoutClass}">
-                            <div class="submission-photo-container">
-                                <img src="/uploads/${submission.photo_path}" alt="Submission photo" class="submission-photo">
+                    const container = document.getElementById('submissions-container');
+                    
+                    if (submissions.length === 0) {
+                        container.innerHTML = `
+                            <div class="no-submissions">
+                                <h3>No submissions yet</h3>
+                                <p>Start sharing your photos and stories!</p>
+                                <a href="/submit">Create your first submission</a>
                             </div>
-                            <div class="submission-content">
-                                <p class="submission-description">${submission.description}</p>
-                                <span class="submission-date">📅 ${new Date(submission.created_at).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}</span>
+                        `;
+                        return;
+                    }
+                    
+                    container.innerHTML = submissions.map((submission, index) => {
+                        const isLeftImage = index % 2 === 0;
+                        const layoutClass = isLeftImage ? 'left-image' : 'right-image';
+                        
+                        return `
+                            <div class="submission-card ${layoutClass}">
+                                <div class="submission-photo-container">
+                                    <img src="/uploads/${submission.photo_path}" alt="Submission photo" class="submission-photo">
+                                </div>
+                                <div class="submission-content">
+                                    <p class="submission-description">${submission.description}</p>
+                                    <span class="submission-date">📅 ${new Date(submission.created_at).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}</span>
+                                </div>
                             </div>
-                        </div>
-                    `;
-                }).join('');
+                        `;
+                    }).join('');
+                } else {
+                    console.log('Submissions response status:', response.status);
+                    document.getElementById('submissions-container').innerHTML = 
+                        '<div class="error">Failed to load submissions. Please try refreshing.</div>';
+                }
             } catch (error) {
+                console.log('Error loading submissions:', error);
                 document.getElementById('submissions-container').innerHTML = 
                     '<div class="error">Failed to load submissions.</div>';
             }
@@ -198,7 +237,7 @@
             }
         });
 
-        // Load submissions and username when page loads
+        // Load both username and submissions when page loads
         loadUserInfo();
         loadSubmissions();
     </script>
