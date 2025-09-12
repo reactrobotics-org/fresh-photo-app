@@ -150,6 +150,21 @@ app.get('/migrate-database', async (req, res) => {
     }
 });
 
+// Fix database constraints
+app.get('/fix-constraints', async (req, res) => {
+    try {
+        // Make photo_path nullable
+        await pool.query('ALTER TABLE submissions ALTER COLUMN photo_path DROP NOT NULL');
+        
+        res.json({ 
+            success: true, 
+            message: 'Constraints fixed - photo_path is now nullable'
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Constraint fix failed: ' + error.message });
+    }
+});
+
 // Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
