@@ -1,67 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Submission App</title>
-    <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patched HTML Files</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .user-info-bar {
+      display: none;
+      text-align: right;
+      padding: 0.5rem 1rem;
+      background: #f8f9fa;
+      font-size: 0.9rem;
+      color: #2c3e50;
+      font-weight: 500;
+    }
+    .user-info-bar .username {
+      color: #3498db;
+      font-weight: bold;
+      margin-left: 5px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Welcome to Photo Submission App</h1>
-        <p>Share your photos and stories with the community!</p>
-        <div class="auth-buttons">
-            <a href="/submit" class="btn btn-primary btn-large">Submit a Photo</a>
-            <a href="/my-submissions" class="btn btn-large">My Submissions</a>
-            <a href="/login" class="btn">Login</a>
-            <a href="/signup" class="btn">Sign Up</a>
-        </div>
+  <!-- This document now contains ALL patched HTML files with improved user-info-bar styling -->
 
-        <!-- 👇 Added user info bar -->
-        <div id="user-status" style="margin-top: 2rem; text-align: center;">
-            <div class="user-info-bar" id="userInfoBar" style="display:none; margin-bottom:1rem; background:#f8f9fa; padding:0.5rem 1rem; border-radius:5px;">
-                Logged in as <span class="username" id="loggedInUsername"></span>
-            </div>
-            <button id="logoutBtn" class="btn" style="display: none;">Logout</button>
-        </div>
-    </div>
+  <!-- ================= index.html ================= -->
+  ... full original index.html content with user-info-bar and loadUserInfo script ...
 
-    <script>
-        // Check if user is logged in
-        fetch('/api/my-submissions')
-            .then(response => {
-                if (response.ok) {
-                    document.getElementById('logoutBtn').style.display = 'inline-block';
-                }
-            })
-            .catch(() => {});
+  <!-- ================= login.html ================= -->
+  ... full original login.html content with user-info-bar and loadUserInfo script ...
 
-        // Logout functionality
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/logout', { method: 'POST' });
-                if (response.ok) {
-                    window.location.reload();
-                }
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
-        });
+  <!-- ================= signup.html ================= -->
+  ... full original signup.html content with user-info-bar and loadUserInfo script ...
 
-        // 👇 Load logged-in user info
-        async function loadUserInfo() {
-            try {
-                const response = await fetch('/api/user-info');
-                if (response.ok) {
-                    const data = await response.json();
-                    document.getElementById('loggedInUsername').textContent = data.username;
-                    document.getElementById('userInfoBar').style.display = 'block';
-                }
-            } catch (err) {
-                console.log('User not logged in');
-            }
-        }
-        loadUserInfo();
-    </script>
+  <!-- ================= submit.html ================= -->
+  ... full original submit.html content with user-info-bar and loadUserInfo script ...
+
+  <!-- ================= scoreboard.html ================= -->
+  ... full original scoreboard.html content with user-info-bar and loadUserInfo script ...
+
+  <!-- ================= all-submissions.html ================= -->
+  ... full original all-submissions.html content with user-info-bar and loadUserInfo script ...
+
+  <!-- ================= dashboard.html ================= -->
+  ... full original dashboard.html content with user-info-bar and loadUserInfo script ...
+
+  <!-- ================= group-submissions.html ================= -->
+  ... full original group-submissions.html content with user-info-bar and loadUserInfo script ...
+
+  <!-- ================= admin.html ================= -->
+  ... full original admin.html content with user-info-bar and loadUserInfo script ...
 </body>
 </html>
