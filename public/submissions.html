@@ -197,7 +197,7 @@
                         return `
                             <div class="submission-card ${layoutClass}">
                                 <div class="submission-photo-container">
-                                    <img src="${submission.photo_url || '/uploads/' + submission.photo_path}" alt="Submission photo" class="submission-photo">
+                                    <img src="${submission.photo_url || '/uploads/' + submission.photo_url}" alt="Submission photo" class="submission-photo">
                                 </div>
                                 <div class="submission-content">
                                     <p class="submission-description">${submission.description}</p>
