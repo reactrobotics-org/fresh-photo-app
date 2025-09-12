@@ -40,7 +40,7 @@ async function createTables() {
             CREATE TABLE IF NOT EXISTS submissions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                photo_path TEXT,
+                photo_path TEXT NULL,
                 photo_url VARCHAR(500),
                 cloudinary_id VARCHAR(255),
                 description TEXT NOT NULL,
