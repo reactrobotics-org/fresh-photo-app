@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Patched HTML Files</title>
+  <title>Photo Submission App</title>
   <link rel="stylesheet" href="styles.css">
   <style>
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1rem;
+      background: #fff;
+      border-bottom: 1px solid #ecf0f1;
+    }
     .user-info-bar {
       display: none;
-      text-align: right;
-      padding: 0.5rem 1rem;
-      background: #f8f9fa;
       font-size: 0.9rem;
       color: #2c3e50;
       font-weight: 500;
@@ -23,33 +28,55 @@
   </style>
 </head>
 <body>
-  <!-- This document now contains ALL patched HTML files with improved user-info-bar styling -->
+  <nav>
+    <h1>Photo Submission App</h1>
+    <div class="auth-buttons">
+      <a href="/submit" class="btn">Submit a Photo</a>
+      <a href="/my-submissions" class="btn">My Submissions</a>
+      <a href="/login" class="btn">Login</a>
+      <a href="/signup" class="btn">Sign Up</a>
+    </div>
+    <div class="user-info-bar" id="userInfoBar">
+      Logged in as <span class="username" id="loggedInUsername"></span>
+      <button id="logoutBtn" class="btn" style="margin-left:10px; display:none;">Logout</button>
+    </div>
+  </nav>
 
-  <!-- ================= index.html ================= -->
-  ... full original index.html content with user-info-bar and loadUserInfo script ...
+  <div class="container">
+    <h1>Welcome to Photo Submission App</h1>
+    <p>Share your photos and stories with the community!</p>
+  </div>
 
-  <!-- ================= login.html ================= -->
-  ... full original login.html content with user-info-bar and loadUserInfo script ...
+  <script>
+    // Show logout if logged in
+    fetch('/api/my-submissions').then(r => { if(r.ok) document.getElementById('logoutBtn').style.display='inline-block'; });
 
-  <!-- ================= signup.html ================= -->
-  ... full original signup.html content with user-info-bar and loadUserInfo script ...
+    // Logout functionality
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        const response = await fetch('/api/logout', { method: 'POST' });
+        if (response.ok) {
+          window.location.reload();
+        }
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    });
 
-  <!-- ================= submit.html ================= -->
-  ... full original submit.html content with user-info-bar and loadUserInfo script ...
-
-  <!-- ================= scoreboard.html ================= -->
-  ... full original scoreboard.html content with user-info-bar and loadUserInfo script ...
-
-  <!-- ================= all-submissions.html ================= -->
-  ... full original all-submissions.html content with user-info-bar and loadUserInfo script ...
-
-  <!-- ================= dashboard.html ================= -->
-  ... full original dashboard.html content with user-info-bar and loadUserInfo script ...
-
-  <!-- ================= group-submissions.html ================= -->
-  ... full original group-submissions.html content with user-info-bar and loadUserInfo script ...
-
-  <!-- ================= admin.html ================= -->
-  ... full original admin.html content with user-info-bar and loadUserInfo script ...
+    // Load logged-in user info
+    async function loadUserInfo() {
+      try {
+        const response = await fetch('/api/user-info');
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById('loggedInUsername').textContent = data.username;
+          document.getElementById('userInfoBar').style.display = 'block';
+        }
+      } catch (err) {
+        console.log('User not logged in');
+      }
+    }
+    loadUserInfo();
+  </script>
 </body>
 </html>
