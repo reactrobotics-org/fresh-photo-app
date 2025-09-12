@@ -120,6 +120,9 @@ app.get('/scoreboard', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'scoreboard.html'));
 });
 
+// Serve uploads statically
+app.use('/uploads', express.static(uploadsDir));
+
 // API Routes
 app.get('/api/user-info', requireAuth, async (req, res) => {
     try {
