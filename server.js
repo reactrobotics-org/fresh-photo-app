@@ -40,7 +40,8 @@ async function createTables() {
             CREATE TABLE IF NOT EXISTS submissions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                photo_url VARCHAR(500) NOT NULL,
+                photo_path TEXT,
+                photo_url VARCHAR(500),
                 cloudinary_id VARCHAR(255),
                 description TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -118,6 +119,36 @@ function requireAuth(req, res, next) {
         res.redirect('/login');
     }
 }
+
+// Temporary migration endpoint
+app.get('/migrate-database', async (req, res) => {
+    try {
+        // Check if photo_url column exists
+        const checkColumn = await pool.query(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='submissions' AND column_name='photo_url'
+        `);
+        
+        if (checkColumn.rows.length === 0) {
+            // Add new columns
+            await pool.query('ALTER TABLE submissions ADD COLUMN photo_url VARCHAR(500)');
+            await pool.query('ALTER TABLE submissions ADD COLUMN cloudinary_id VARCHAR(255)');
+            
+            res.json({ 
+                success: true, 
+                message: 'Database migrated successfully - added photo_url and cloudinary_id columns'
+            });
+        } else {
+            res.json({ 
+                success: true, 
+                message: 'Database already has correct columns'
+            });
+        }
+    } catch (error) {
+        res.status(500).json({ error: 'Migration failed: ' + error.message });
+    }
+});
 
 // Routes
 app.get('/', (req, res) => {
@@ -240,12 +271,13 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
 app.get('/api/my-submissions', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT * FROM submissions WHERE user_id = $1 ORDER BY created_at DESC',
+            'SELECT id, user_id, COALESCE(photo_url, \'/uploads/\' || photo_path) as photo_url, description, created_at FROM submissions WHERE user_id = $1 ORDER BY created_at DESC',
             [req.session.userId]
         );
         
         res.json(result.rows);
     } catch (error) {
+        console.error('Submissions fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch submissions' });
     }
 });
