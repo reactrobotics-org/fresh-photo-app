@@ -11,6 +11,19 @@ body {
     line-height: 1.6;
 }
 
+.user-info-bar {
+    background: #34495e;
+    color: white;
+    padding: 0.5rem 2rem;
+    text-align: right;
+    font-size: 0.9rem;
+}
+
+.user-info-bar .username {
+    font-weight: bold;
+    color: #3498db;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;

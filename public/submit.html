@@ -44,6 +44,23 @@
     <script>
         let compressedFile = null;
 
+        // Load and display username
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info');
+                if (response.ok) {
+                    const userData = await response.json();
+                    document.getElementById('loggedInUsername').textContent = userData.username;
+                    document.getElementById('userInfoBar').style.display = 'block';
+                }
+            } catch (error) {
+                console.log('Could not load user info');
+            }
+        }
+
+        // Load username when page loads
+        loadUserInfo();
+
         // Character counter for description
         document.getElementById('description').addEventListener('input', function(e) {
             const remaining = 500 - e.target.value.length;
