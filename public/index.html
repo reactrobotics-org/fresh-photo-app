@@ -16,7 +16,12 @@
             <a href="/login" class="btn">Login</a>
             <a href="/signup" class="btn">Sign Up</a>
         </div>
+
+        <!-- 👇 Added user info bar -->
         <div id="user-status" style="margin-top: 2rem; text-align: center;">
+            <div class="user-info-bar" id="userInfoBar" style="display:none; margin-bottom:1rem; background:#f8f9fa; padding:0.5rem 1rem; border-radius:5px;">
+                Logged in as <span class="username" id="loggedInUsername"></span>
+            </div>
             <button id="logoutBtn" class="btn" style="display: none;">Logout</button>
         </div>
     </div>
@@ -26,21 +31,15 @@
         fetch('/api/my-submissions')
             .then(response => {
                 if (response.ok) {
-                    // User is logged in
                     document.getElementById('logoutBtn').style.display = 'inline-block';
                 }
             })
-            .catch(() => {
-                // User is not logged in, nothing to do
-            });
+            .catch(() => {});
 
         // Logout functionality
         document.getElementById('logoutBtn').addEventListener('click', async () => {
             try {
-                const response = await fetch('/api/logout', {
-                    method: 'POST',
-                });
-                
+                const response = await fetch('/api/logout', { method: 'POST' });
                 if (response.ok) {
                     window.location.reload();
                 }
@@ -48,6 +47,21 @@
                 console.error('Logout failed:', error);
             }
         });
+
+        // 👇 Load logged-in user info
+        async function loadUserInfo() {
+            try {
+                const response = await fetch('/api/user-info');
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('loggedInUsername').textContent = data.username;
+                    document.getElementById('userInfoBar').style.display = 'block';
+                }
+            } catch (err) {
+                console.log('User not logged in');
+            }
+        }
+        loadUserInfo();
     </script>
 </body>
 </html>
