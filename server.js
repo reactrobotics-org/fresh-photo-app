@@ -3,18 +3,19 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { Pool } = require('pg');
+const cloudinary = require('cloudinary').v2;
 const path = require('path');
 const bodyParser = require('body-parser');
-const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Create uploads directory
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// Cloudinary configuration
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // PostgreSQL connection
 const pool = new Pool({
@@ -39,7 +40,8 @@ async function createTables() {
             CREATE TABLE IF NOT EXISTS submissions (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER REFERENCES users(id),
-                photo_path VARCHAR(255) NOT NULL,
+                photo_url VARCHAR(500) NOT NULL,
+                cloudinary_id VARCHAR(255),
                 description TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -51,14 +53,12 @@ async function createTables() {
     }
 }
 
-// Initialize database
 createTables();
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
 
 // Session setup
 app.use(session({
@@ -70,21 +70,45 @@ app.use(session({
     }
 }));
 
-// File upload setup
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+// Configure multer for memory storage
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+    fileFilter: function (req, file, cb) {
+        const filetypes = /jpeg|jpg|png|gif|webp/;
+        const mimetype = filetypes.test(file.mimetype);
+        
+        if (mimetype) {
+            return cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed!'));
+        }
     }
 });
 
-const upload = multer({ 
-    storage: storage,
-    limits: { fileSize: 5 * 1024 * 1024 }
-});
+// Helper function to upload to Cloudinary
+function uploadToCloudinary(fileBuffer, options = {}) {
+    return new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_stream(
+            {
+                resource_type: 'image',
+                folder: 'photo-submissions', // Organize photos in a folder
+                transformation: [
+                    { width: 1200, height: 1200, crop: 'limit' }, // Max size
+                    { quality: 'auto:good' } // Auto quality optimization
+                ],
+                ...options
+            },
+            (error, result) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(result);
+                }
+            }
+        ).end(fileBuffer);
+    });
+}
 
 // Auth middleware
 function requireAuth(req, res, next) {
@@ -120,9 +144,6 @@ app.get('/scoreboard', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'scoreboard.html'));
 });
 
-// Serve uploads statically
-app.use('/uploads', express.static(uploadsDir));
-
 // API Routes
 app.get('/api/user-info', requireAuth, async (req, res) => {
     try {
@@ -151,7 +172,7 @@ app.post('/api/signup', async (req, res) => {
         req.session.userId = result.rows[0].id;
         res.json({ success: true });
     } catch (error) {
-        if (error.code === '23505') { // Unique violation
+        if (error.code === '23505') {
             return res.status(400).json({ error: 'Username or email already exists' });
         }
         res.status(500).json({ error: 'Server error' });
@@ -190,21 +211,29 @@ app.post('/api/logout', (req, res) => {
 
 app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) => {
     const { description } = req.body;
-    const photoPath = req.file ? req.file.filename : null;
     
-    if (!photoPath || !description) {
+    if (!req.file || !description) {
         return res.status(400).json({ error: 'Photo and description are required' });
     }
 
     try {
+        console.log('Uploading to Cloudinary...');
+        
+        // Upload to Cloudinary
+        const result = await uploadToCloudinary(req.file.buffer);
+        
+        console.log('Cloudinary upload successful:', result.public_id);
+
+        // Save to database with Cloudinary URL
         await pool.query(
-            'INSERT INTO submissions (user_id, photo_path, description) VALUES ($1, $2, $3)',
-            [req.session.userId, photoPath, description]
+            'INSERT INTO submissions (user_id, photo_url, cloudinary_id, description) VALUES ($1, $2, $3, $4)',
+            [req.session.userId, result.secure_url, result.public_id, description]
         );
         
         res.json({ success: true });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to save submission' });
+        console.error('Upload error:', error);
+        res.status(500).json({ error: 'Failed to save submission: ' + error.message });
     }
 });
 
