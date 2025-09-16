@@ -197,9 +197,12 @@
                         return `
                             <div class="submission-card ${layoutClass}">
                                 <div class="submission-photo-container">
-                                    <img src="${submission.photo_url || '/uploads/' + submission.photo_url}" alt="Submission photo" class="submission-photo">
+                                    <img src="${submission.photo_url || '/uploads/' + submission.photo_path}" alt="Submission photo" class="submission-photo">
                                 </div>
                                 <div class="submission-content">
+                                    <div style="margin-bottom: 1rem;">
+                                        <strong style="color: #3498db;">Photo by: ${submission.username}</strong>
+                                    </div>
                                     <p class="submission-description">${submission.description}</p>
                                     <span class="submission-date">📅 ${new Date(submission.created_at).toLocaleDateString('en-US', {
                                         year: 'numeric',

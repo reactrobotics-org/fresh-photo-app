@@ -32,7 +32,26 @@ async function createTables() {
                 username VARCHAR(255) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
+                is_admin BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS groups (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) UNIQUE NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_groups (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER REFERENCES users(id),
+                group_id INTEGER REFERENCES groups(id),
+                UNIQUE(user_id, group_id)
             )
         `);
 
@@ -47,6 +66,17 @@ async function createTables() {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
+
+        // Create admin user if doesn't exist
+        const adminCheck = await pool.query('SELECT id FROM users WHERE username = $1', ['REACT']);
+        if (adminCheck.rows.length === 0) {
+            const hashedPassword = await bcrypt.hash('Robotics', 10);
+            await pool.query(
+                'INSERT INTO users (username, email, password, is_admin) VALUES ($1, $2, $3, $4)',
+                ['REACT', 'admin@reactrobotics.app', hashedPassword, true]
+            );
+            console.log('Admin user REACT created with password Robotics');
+        }
 
         console.log('Database tables created successfully');
     } catch (error) {
@@ -120,6 +150,20 @@ function requireAuth(req, res, next) {
     }
 }
 
+// Admin middleware
+function requireAdmin(req, res, next) {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+    
+    pool.query('SELECT is_admin FROM users WHERE id = $1', [req.session.userId], (err, result) => {
+        if (err || !result.rows[0] || !result.rows[0].is_admin) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+        next();
+    });
+}
+
 // Temporary migration endpoint
 app.get('/migrate-database', async (req, res) => {
     try {
@@ -188,6 +232,10 @@ app.get('/my-submissions', requireAuth, (req, res) => {
 
 app.get('/scoreboard', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'scoreboard.html'));
+});
+
+app.get('/admin', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
 });
 
 // API Routes
@@ -285,10 +333,18 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
 
 app.get('/api/my-submissions', requireAuth, async (req, res) => {
     try {
-        const result = await pool.query(
-            'SELECT id, user_id, COALESCE(photo_url, \'/uploads/\' || photo_path) as photo_url, description, created_at FROM submissions WHERE user_id = $1 ORDER BY created_at DESC',
-            [req.session.userId]
-        );
+        const result = await pool.query(`
+            SELECT DISTINCT s.id, s.user_id, s.photo_url, s.description, s.created_at, u.username
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.user_id IN (
+                SELECT ug2.user_id 
+                FROM user_groups ug1
+                JOIN user_groups ug2 ON ug1.group_id = ug2.group_id
+                WHERE ug1.user_id = $1
+            ) OR s.user_id = $1
+            ORDER BY s.created_at DESC
+        `, [req.session.userId]);
         
         res.json(result.rows);
     } catch (error) {
@@ -312,6 +368,86 @@ app.get('/api/scoreboard', requireAuth, async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch scoreboard' });
+    }
+});
+
+// Admin API routes
+app.get('/api/admin/users', requireAdmin, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, username, email, is_admin FROM users ORDER BY username');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+app.get('/api/admin/groups', requireAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT g.*, COUNT(ug.user_id) as member_count
+            FROM groups g
+            LEFT JOIN user_groups ug ON g.id = ug.group_id
+            GROUP BY g.id
+            ORDER BY g.name
+        `);
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch groups' });
+    }
+});
+
+app.post('/api/admin/groups', requireAdmin, async (req, res) => {
+    try {
+        const { name, description } = req.body;
+        const result = await pool.query(
+            'INSERT INTO groups (name, description) VALUES ($1, $2) RETURNING id',
+            [name, description || '']
+        );
+        res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create group' });
+    }
+});
+
+app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const result = await pool.query(`
+            SELECT u.id, u.username, u.email,
+                   CASE WHEN ug.user_id IS NOT NULL THEN true ELSE false END as is_member
+            FROM users u
+            LEFT JOIN user_groups ug ON u.id = ug.user_id AND ug.group_id = $1
+            ORDER BY u.username
+        `, [groupId]);
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch group members' });
+    }
+});
+
+app.post('/api/admin/add-user-to-group', requireAdmin, async (req, res) => {
+    try {
+        const { userId, groupId } = req.body;
+        await pool.query(
+            'INSERT INTO user_groups (user_id, group_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+            [userId, groupId]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to add user to group' });
+    }
+});
+
+app.post('/api/admin/remove-user-from-group', requireAdmin, async (req, res) => {
+    try {
+        const { userId, groupId } = req.body;
+        await pool.query(
+            'DELETE FROM user_groups WHERE user_id = $1 AND group_id = $2',
+            [userId, groupId]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to remove user from group' });
     }
 });
 

@@ -3,9 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Photo Submission App</title>
+    <title>Admin - Photo Submission App</title>
     <link rel="stylesheet" href="styles.css">
     <style>
+        .user-info-bar {
+            background: #34495e;
+            color: white;
+            padding: 0.5rem 2rem;
+            text-align: right;
+            font-size: 0.9rem;
+        }
+        .user-info-bar .username {
+            font-weight: bold;
+            color: #3498db;
+        }
         .admin-section {
             background: white;
             border-radius: 10px;
@@ -13,34 +24,15 @@
             margin-bottom: 2rem;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
-
-        .admin-tabs {
+        .form-inline {
             display: flex;
+            gap: 1rem;
+            align-items: end;
             margin-bottom: 2rem;
-            border-bottom: 2px solid #ecf0f1;
         }
-
-        .admin-tab {
-            padding: 1rem 2rem;
-            cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s;
+        .form-inline .form-group {
+            margin-bottom: 0;
         }
-
-        .admin-tab.active {
-            border-bottom-color: #3498db;
-            color: #3498db;
-            font-weight: bold;
-        }
-
-        .tab-content {
-            display: none;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
         .group-card {
             border: 2px solid #ecf0f1;
             border-radius: 10px;
@@ -48,25 +40,20 @@
             margin-bottom: 1rem;
             transition: all 0.3s;
         }
-
         .group-card:hover {
             border-color: #3498db;
-            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.1);
         }
-
         .group-header {
             display: flex;
-            justify-content: between;
+            justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
         }
-
         .group-name {
             font-size: 1.3rem;
             font-weight: bold;
             color: #2c3e50;
         }
-
         .member-count {
             background: #3498db;
             color: white;
@@ -74,14 +61,12 @@
             border-radius: 15px;
             font-size: 0.9rem;
         }
-
         .user-list {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 1rem;
             margin-top: 1rem;
         }
-
         .user-card {
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -90,74 +75,51 @@
             justify-content: space-between;
             align-items: center;
         }
-
         .user-card.member {
             background: #d4edda;
             border-color: #27ae60;
         }
-
         .user-info {
             flex: 1;
         }
-
         .username {
             font-weight: bold;
             color: #2c3e50;
         }
-
         .user-email {
             font-size: 0.9em;
             color: #666;
         }
-
         .btn-small {
             padding: 0.4rem 0.8rem;
             font-size: 0.9rem;
         }
-
         .btn-success {
             background: #27ae60;
             color: white;
         }
-
         .btn-success:hover {
             background: #219a52;
         }
-
         .btn-danger {
             background: #e74c3c;
             color: white;
         }
-
         .btn-danger:hover {
             background: #c0392b;
-        }
-
-        .form-inline {
-            display: flex;
-            gap: 1rem;
-            align-items: end;
-            margin-bottom: 2rem;
-        }
-
-        .form-inline .form-group {
-            margin-bottom: 0;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
         }
     </style>
 </head>
 <body>
+    <div class="user-info-bar" id="userInfoBar" style="display: none;">
+        Logged in as <span class="username" id="loggedInUsername"></span>
+    </div>
     <nav>
         <h1><a href="/">Photo Submission App</a></h1>
         <div class="nav-links">
             <a href="/" class="btn">Home</a>
-            <a href="/submit" class="btn">New Submission</a>
-            <a href="/my-submissions" class="btn">My Submissions</a>
+            <a href="/submit" class="btn">Submit Photo</a>
+            <a href="/my-submissions" class="btn">My Photos</a>
             <button id="logoutBtn" class="btn">Logout</button>
         </div>
     </nav>
@@ -165,117 +127,68 @@
     <div class="container">
         <h2>🔧 Admin Dashboard</h2>
         
-        <div class="admin-tabs">
-            <div class="admin-tab active" onclick="showTab('groups')">Groups</div>
-            <div class="admin-tab" onclick="showTab('users')">Users</div>
+        <div class="admin-section">
+            <h3>Create New Group</h3>
+            <form id="createGroupForm" class="form-inline">
+                <div class="form-group">
+                    <label for="groupName">Group Name:</label>
+                    <input type="text" id="groupName" name="groupName" required>
+                </div>
+                <div class="form-group">
+                    <label for="groupDescription">Description:</label>
+                    <input type="text" id="groupDescription" name="groupDescription">
+                </div>
+                <button type="submit" class="btn btn-primary">Create Group</button>
+            </form>
         </div>
 
-        <div id="groups-tab" class="tab-content active">
-            <div class="admin-section">
-                <h3>Create New Group</h3>
-                <form id="createGroupForm" class="form-inline">
-                    <div class="form-group">
-                        <label for="groupName">Group Name:</label>
-                        <input type="text" id="groupName" name="groupName" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="groupDescription">Description:</label>
-                        <input type="text" id="groupDescription" name="groupDescription" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Create Group</button>
-                </form>
-            </div>
-
-            <div class="admin-section">
-                <h3>Manage Groups</h3>
-                <div id="groups-container" class="loading">Loading groups...</div>
-            </div>
-        </div>
-
-        <div id="users-tab" class="tab-content">
-            <div class="admin-section">
-                <h3>All Users</h3>
-                <div id="users-container" class="loading">Loading users...</div>
-            </div>
+        <div class="admin-section">
+            <h3>Manage Groups</h3>
+            <div id="groups-container">Loading groups...</div>
         </div>
 
         <div id="message"></div>
     </div>
 
     <script>
-        let allUsers = [];
-        let allGroups = [];
-
-        // Tab switching
-        function showTab(tabName) {
-            document.querySelectorAll('.admin-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tabName + '-tab').classList.add('active');
-        }
-
-        // Load initial data
-        async function loadUsers() {
+        // Load username
+        async function loadUserInfo() {
             try {
-                const response = await fetch('/api/admin/users');
-                allUsers = await response.json();
-                displayUsers();
+                const response = await fetch('/api/user-info');
+                if (response.ok) {
+                    const userData = await response.json();
+                    document.getElementById('loggedInUsername').textContent = userData.username;
+                    document.getElementById('userInfoBar').style.display = 'block';
+                }
             } catch (error) {
-                document.getElementById('users-container').innerHTML = '<div class="error">Failed to load users</div>';
+                console.log('Could not load user info');
             }
         }
 
+        // Load groups
         async function loadGroups() {
             try {
                 const response = await fetch('/api/admin/groups');
-                allGroups = await response.json();
-                displayGroups();
+                const groups = await response.json();
+                displayGroups(groups);
             } catch (error) {
                 document.getElementById('groups-container').innerHTML = '<div class="error">Failed to load groups</div>';
             }
         }
 
-        function displayUsers() {
-            const container = document.getElementById('users-container');
-            if (allUsers.length === 0) {
-                container.innerHTML = '<p>No users found.</p>';
-                return;
-            }
-
-            container.innerHTML = `
-                <div class="user-list">
-                    ${allUsers.map(user => `
-                        <div class="user-card">
-                            <div class="user-info">
-                                <div class="username">${user.username} ${user.is_admin ? '👑' : ''}</div>
-                                <div class="user-email">${user.email}</div>
-                                <div style="font-size: 0.8em; color: #999;">
-                                    Joined: ${new Date(user.created_at).toLocaleDateString()}
-                                </div>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-
-        function displayGroups() {
+        function displayGroups(groups) {
             const container = document.getElementById('groups-container');
-            if (allGroups.length === 0) {
-                container.innerHTML = '<p>No groups found. Create your first group above!</p>';
+            if (groups.length === 0) {
+                container.innerHTML = '<p>No groups created yet.</p>';
                 return;
             }
 
-            container.innerHTML = allGroups.map(group => `
+            container.innerHTML = groups.map(group => `
                 <div class="group-card">
                     <div class="group-header">
                         <div>
                             <div class="group-name">${group.name}</div>
-                            <div style="color: #666; margin-top: 0.5rem;">${group.description}</div>
-                            <div style="font-size: 0.9em; color: #999; margin-top: 0.5rem;">
-                                Created by: ${group.created_by_username || 'Unknown'}
-                            </div>
+                            <div style="color: #666; margin-top: 0.5rem;">${group.description || 'No description'}</div>
                         </div>
                         <span class="member-count">${group.member_count} members</span>
                     </div>
@@ -303,7 +216,6 @@
                                     <div class="user-info">
                                         <div class="username">${user.username}</div>
                                         <div class="user-email">${user.email}</div>
-                                        ${user.is_member && user.added_at ? `<div style="font-size: 0.8em; color: #27ae60;">Added: ${new Date(user.added_at).toLocaleDateString()}</div>` : ''}
                                     </div>
                                     ${user.is_member ? 
                                         `<button onclick="removeUserFromGroup(${user.id}, ${groupId})" class="btn btn-danger btn-small">Remove</button>` :
@@ -330,18 +242,15 @@
                     body: JSON.stringify({ userId, groupId })
                 });
 
-                const result = await response.json();
-                if (result.success) {
-                    showMessage('User added to group successfully!', 'success');
+                if (response.ok) {
+                    showMessage('User added to group!', 'success');
                     loadGroups();
-                    // Refresh the member list
+                    // Refresh member list
                     const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
                     if (membersDiv.style.display !== 'none') {
                         membersDiv.style.display = 'none';
                         manageGroupMembers(groupId, '');
                     }
-                } else {
-                    showMessage(result.error, 'error');
                 }
             } catch (error) {
                 showMessage('Failed to add user to group', 'error');
@@ -356,25 +265,22 @@
                     body: JSON.stringify({ userId, groupId })
                 });
 
-                const result = await response.json();
-                if (result.success) {
-                    showMessage('User removed from group successfully!', 'success');
+                if (response.ok) {
+                    showMessage('User removed from group!', 'success');
                     loadGroups();
-                    // Refresh the member list
+                    // Refresh member list
                     const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
                     if (membersDiv.style.display !== 'none') {
                         membersDiv.style.display = 'none';
                         manageGroupMembers(groupId, '');
                     }
-                } else {
-                    showMessage(result.error, 'error');
                 }
             } catch (error) {
                 showMessage('Failed to remove user from group', 'error');
             }
         }
 
-        // Create new group
+        // Create group
         document.getElementById('createGroupForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
@@ -388,13 +294,12 @@
                     body: JSON.stringify(data)
                 });
 
-                const result = await response.json();
-                if (result.success) {
+                if (response.ok) {
                     showMessage('Group created successfully!', 'success');
                     e.target.reset();
                     loadGroups();
                 } else {
-                    showMessage(result.error, 'error');
+                    showMessage('Failed to create group', 'error');
                 }
             } catch (error) {
                 showMessage('Failed to create group', 'error');
@@ -404,28 +309,17 @@
         function showMessage(message, type) {
             const messageDiv = document.getElementById('message');
             messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
-            setTimeout(() => {
-                messageDiv.innerHTML = '';
-            }, 3000);
+            setTimeout(() => messageDiv.innerHTML = '', 3000);
         }
 
-        // Logout functionality
+        // Logout
         document.getElementById('logoutBtn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/logout', {
-                    method: 'POST',
-                });
-                
-                if (response.ok) {
-                    window.location.href = '/';
-                }
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
+            const response = await fetch('/api/logout', { method: 'POST' });
+            if (response.ok) window.location.href = '/';
         });
 
-        // Load initial data
-        loadUsers();
+        // Load data
+        loadUserInfo();
         loadGroups();
     </script>
 </body>
