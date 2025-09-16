@@ -408,7 +408,10 @@ app.post('/api/admin/groups', requireAdmin, async (req, res) => {
         res.status(500).json({ error: 'Failed to create group' });
     }
 });
-
+app.post('/api/test', (req, res) => {
+    console.log('Test endpoint hit with body:', req.body);
+    res.json({ message: 'Test successful', body: req.body });
+});
 app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
     try {
         const { groupId } = req.params;
