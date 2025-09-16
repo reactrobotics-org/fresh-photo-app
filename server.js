@@ -76,6 +76,10 @@ async function createTables() {
                 ['REACT', 'admin@reactrobotics.app', hashedPassword, true]
             );
             console.log('Admin user REACT created with password Robotics');
+        } else {
+            // Update existing REACT user to be admin
+            await pool.query('UPDATE users SET is_admin = true WHERE username = $1', ['REACT']);
+            console.log('Updated REACT user to admin status');
         }
 
         console.log('Database tables created successfully');
@@ -164,51 +168,6 @@ function requireAdmin(req, res, next) {
     });
 }
 
-// Temporary migration endpoint
-app.get('/migrate-database', async (req, res) => {
-    try {
-        // Check if photo_url column exists
-        const checkColumn = await pool.query(`
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name='submissions' AND column_name='photo_url'
-        `);
-        
-        if (checkColumn.rows.length === 0) {
-            // Add new columns
-            await pool.query('ALTER TABLE submissions ADD COLUMN photo_url VARCHAR(500)');
-            await pool.query('ALTER TABLE submissions ADD COLUMN cloudinary_id VARCHAR(255)');
-            
-            res.json({ 
-                success: true, 
-                message: 'Database migrated successfully - added photo_url and cloudinary_id columns'
-            });
-        } else {
-            res.json({ 
-                success: true, 
-                message: 'Database already has correct columns'
-            });
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Migration failed: ' + error.message });
-    }
-});
-
-// Fix database constraints
-app.get('/fix-constraints', async (req, res) => {
-    try {
-        // Make photo_path nullable
-        await pool.query('ALTER TABLE submissions ALTER COLUMN photo_path DROP NOT NULL');
-        
-        res.json({ 
-            success: true, 
-            message: 'Constraints fixed - photo_path is now nullable'
-        });
-    } catch (error) {
-        res.status(500).json({ error: 'Constraint fix failed: ' + error.message });
-    }
-});
-
 // Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -236,6 +195,14 @@ app.get('/scoreboard', requireAuth, (req, res) => {
 
 app.get('/admin', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+app.get('/all-submissions', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'all-submissions.html'));
+});
+
+app.get('/group-submissions', requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'group-submissions.html'));
 });
 
 // API Routes
@@ -353,6 +320,73 @@ app.get('/api/my-submissions', requireAuth, async (req, res) => {
     }
 });
 
+app.get('/api/all-submissions', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at, 
+                   u.username, u.email
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            ORDER BY s.created_at DESC
+        `);
+        
+        res.json(result.rows);
+    } catch (error) {
+        console.error('All submissions fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch submissions' });
+    }
+});
+
+app.get('/api/user-groups', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT g.id, g.name, g.description
+            FROM groups g
+            JOIN user_groups ug ON g.id = ug.group_id
+            WHERE ug.user_id = $1
+            ORDER BY g.name
+        `, [req.session.userId]);
+        
+        res.json(result.rows);
+    } catch (error) {
+        console.error('User groups fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch user groups' });
+    }
+});
+
+app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        
+        // First check if user is member of this group
+        const memberCheck = await pool.query(
+            'SELECT 1 FROM user_groups WHERE user_id = $1 AND group_id = $2',
+            [req.session.userId, groupId]
+        );
+        
+        if (memberCheck.rows.length === 0) {
+            return res.status(403).json({ error: 'Not a member of this group' });
+        }
+        
+        // Get submissions from all members of this group
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at,
+                   u.username, g.name as group_name
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            JOIN user_groups ug ON u.id = ug.user_id
+            JOIN groups g ON ug.group_id = g.id
+            WHERE g.id = $1
+            ORDER BY s.created_at DESC
+        `, [groupId]);
+        
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Group submissions fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch group submissions' });
+    }
+});
+
 app.get('/api/scoreboard', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(`
@@ -392,26 +426,31 @@ app.get('/api/admin/groups', requireAdmin, async (req, res) => {
         `);
         res.json(result.rows);
     } catch (error) {
+        console.error('Groups fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch groups' });
     }
 });
 
 app.post('/api/admin/groups', requireAdmin, async (req, res) => {
     try {
-        const { groupName, description } = req.body;
+        console.log('Received request body:', req.body);
+        const { groupName, groupDescription } = req.body;
+        console.log('Attempting to create group:', groupName, groupDescription);
+        
         const result = await pool.query(
             'INSERT INTO groups (name, description) VALUES ($1, $2) RETURNING id',
-            [groupName, groupdescription || '']
+            [groupName, groupDescription || '']
         );
+        
+        console.log('Group created successfully:', result.rows[0]);
         res.json({ success: true, id: result.rows[0].id });
     } catch (error) {
-        res.status(500).json({ error: 'Failed to create group' });
+        console.error('Group creation error:', error.message);
+        console.error('Full error:', error);
+        res.status(500).json({ error: 'Failed to create group: ' + error.message });
     }
 });
-app.post('/api/test', (req, res) => {
-    console.log('Test endpoint hit with body:', req.body);
-    res.json({ message: 'Test successful', body: req.body });
-});
+
 app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
     try {
         const { groupId } = req.params;
