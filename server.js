@@ -420,6 +420,26 @@ app.get('/fix-react-admin', async (req, res) => {
         res.status(500).json({ error: 'Failed to update admin status: ' + error.message });
     }
 });
+// Add this endpoint to create the missing is_admin column
+app.get('/add-admin-column', async (req, res) => {
+    try {
+        // Add the is_admin column if it doesn't exist
+        await pool.query(`
+            ALTER TABLE users 
+            ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE
+        `);
+        
+        // Now update the REACT user to be admin
+        await pool.query('UPDATE users SET is_admin = true WHERE username = $1', ['REACT']);
+        
+        res.json({ 
+            success: true, 
+            message: 'Added is_admin column and updated REACT user'
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Migration failed: ' + error.message });
+    }
+});
 app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
     try {
         const { groupId } = req.params;
