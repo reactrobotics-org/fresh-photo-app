@@ -408,7 +408,18 @@ app.post('/api/admin/groups', requireAdmin, async (req, res) => {
         res.status(500).json({ error: 'Failed to create group' });
     }
 });
-
+// Add this to your server.js - temporary fix for REACT user admin status
+app.get('/fix-react-admin', async (req, res) => {
+    try {
+        await pool.query('UPDATE users SET is_admin = true WHERE username = $1', ['REACT']);
+        res.json({ 
+            success: true, 
+            message: 'REACT user admin status updated'
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update admin status: ' + error.message });
+    }
+});
 app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
     try {
         const { groupId } = req.params;
