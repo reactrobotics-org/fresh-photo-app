@@ -17,13 +17,58 @@
     .user-info-bar {
       display: none;
       font-size: 0.9rem;
-      color: #ffffff; /* changed to white */
+      color: #ffffff;
       font-weight: 500;
     }
     .user-info-bar .username {
       color: #3498db;
       font-weight: bold;
       margin-left: 5px;
+    }
+
+    .hero-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin: 2rem 0;
+    }
+
+    .hero-image {
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      transition: transform 0.3s ease;
+    }
+
+    .hero-image:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .hero-image img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .hero-image img:hover {
+      transform: scale(1.05);
+    }
+
+    .hero-caption {
+      padding: 1rem;
+      background: white;
+      text-align: center;
+      color: #2c3e50;
+      font-weight: 500;
+    }
+
+    @media (max-width: 768px) {
+      .hero-gallery {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+      }
     }
   </style>
 </head>
@@ -44,8 +89,23 @@
 
   <div class="container">
     <h1>Welcome to Photo Submission App</h1>
-    <p>This PWA is designed to make it easy for you to add a notebook entry during practice.</p>
-    <p>Simply take a picture of your robot, write a couple lines to say what your about to do, then Submit</p>
+      <p>This PWA is designed to make it easy for you to add a notebook entry during practice.</p>
+      <p>Simply take a picture of your robot, write a couple lines to say what your about to do, then Submit</p>
+    
+    <div class="hero-gallery">
+      <div class="hero-image">
+        <img src="images/photo1.jpg" alt="Index Photo">
+        <div class="hero-caption">This</div>
+      </div>
+      <div class="hero-image">
+        <img src="images/photo2.jpg" alt="Index photo">
+        <div class="hero-caption">Looks</div>
+      </div>
+      <div class="hero-image">
+        <img src="images/photo3.jpg" alt="Index photo">
+        <div class="hero-caption">Amazing!!</div>
+      </div>
+    </div>
   </div>
 
   <script>
