@@ -204,8 +204,100 @@ app.get('/all-submissions', requireAuth, (req, res) => {
 app.get('/group-submissions', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'group-submissions.html'));
 });
-
 // API Routes
+
+// Get a single submission for editing
+app.get('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.id = $1 AND s.user_id = $2
+        `, [id, req.session.userId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Get submission error:', error);
+        res.status(500).json({ error: 'Failed to fetch submission' });
+    }
+});
+
+// Update a submission
+app.put('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { description } = req.body;
+        
+        if (!description || description.trim().length === 0) {
+            return res.status(400).json({ error: 'Description is required' });
+        }
+        
+        if (description.length > 500) {
+            return res.status(400).json({ error: 'Description must be 500 characters or less' });
+        }
+        
+        const result = await pool.query(`
+            UPDATE submissions 
+            SET description = $1 
+            WHERE id = $2 AND user_id = $3 
+            RETURNING id
+        `, [description.trim(), id, req.session.userId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update submission error:', error);
+        res.status(500).json({ error: 'Failed to update submission' });
+    }
+});
+
+// Delete a submission
+app.delete('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // First, get the submission to delete the photo from Cloudinary
+        const submissionResult = await pool.query(`
+            SELECT cloudinary_id 
+            FROM submissions 
+            WHERE id = $1 AND user_id = $2
+        `, [id, req.session.userId]);
+        
+        if (submissionResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        // Delete from Cloudinary if cloudinary_id exists
+        const cloudinaryId = submissionResult.rows[0].cloudinary_id;
+        if (cloudinaryId) {
+            try {
+                await cloudinary.uploader.destroy(cloudinaryId);
+                console.log('Deleted from Cloudinary:', cloudinaryId);
+            } catch (cloudinaryError) {
+                console.error('Failed to delete from Cloudinary:', cloudinaryError);
+                // Continue with database deletion even if Cloudinary fails
+            }
+        }
+        
+        // Delete from database
+        await pool.query('DELETE FROM submissions WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete submission error:', error);
+        res.status(500).json({ error: 'Failed to delete submission' });
+    }
+});
+
 app.get('/api/user-info', requireAuth, async (req, res) => {
     try {
         const result = await pool.query('SELECT username FROM users WHERE id = $1', [req.session.userId]);
