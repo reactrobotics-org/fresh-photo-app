@@ -204,6 +204,7 @@ app.get('/all-submissions', requireAuth, (req, res) => {
 app.get('/group-submissions', requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'group-submissions.html'));
 });
+
 // API Routes
 
 // Get a single submission for editing
@@ -497,12 +498,6 @@ app.get('/api/scoreboard', requireAuth, async (req, res) => {
         res.json(result.rows);
     } catch (error) {
         console.error('Scoreboard fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch scoreboard' });
-    }
-});
-        
-        res.json(result.rows);
-    } catch (error) {
         res.status(500).json({ error: 'Failed to fetch scoreboard' });
     }
 });
