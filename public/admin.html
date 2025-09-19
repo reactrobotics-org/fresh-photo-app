@@ -65,6 +65,7 @@
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1rem;
+            flex-wrap: wrap;
         }
         .user-list {
             display: grid;
@@ -98,6 +99,10 @@
         .btn-small {
             padding: 0.4rem 0.8rem;
             font-size: 0.9rem;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
         }
         .btn-success {
             background: #27ae60;
@@ -119,6 +124,14 @@
         }
         .btn-info:hover {
             background: #2980b9;
+        }
+        .btn-view-entries {
+            background: #3498db !important;
+            color: white !important;
+            border: none !important;
+        }
+        .btn-view-entries:hover {
+            background: #2980b9 !important;
         }
         
         /* Modal styles for viewing entries */
@@ -363,70 +376,47 @@
                 return;
             }
 
-            container.innerHTML = groups.map(group => `
-                <div class="group-card">
-                    <div class="group-header">
-                        <div>
-                            <div class="group-name">${group.name}</div>
-                            <div style="color: #666; margin-top: 0.5rem;">${group.description || 'No description'}</div>
+            let html = '';
+            groups.forEach(group => {
+                html += `
+                    <div class="group-card">
+                        <div class="group-header">
+                            <div>
+                                <div class="group-name">${group.name}</div>
+                                <div style="color: #666; margin-top: 0.5rem;">${group.description || 'No description'}</div>
+                            </div>
+                            <span class="member-count">${group.member_count} members</span>
                         </div>
-                        <span class="member-count">${group.member_count} members</span>
+                        <div class="group-actions">
+                            <button onclick="manageGroupMembers(${group.id}, '${group.name.replace(/'/g, "\\\'")}')" class="btn btn-primary btn-small">
+                                Manage Members
+                            </button>
+                            <button onclick="viewGroupEntries(${group.id}, '${group.name.replace(/'/g, "\\\'")}')" class="btn btn-small btn-view-entries">
+                                📊 View Entries
+                            </button>
+                        </div>
+                        <div id="members-${group.id}" style="display: none; margin-top: 1rem;"></div>
                     </div>
-                    <div class="group-actions">
-                        <button onclick="manageGroupMembers(${group.id}, '${group.name}')" class="btn btn-primary btn-small">
-                            Manage Members
-                        </button>
-                        <button onclick="viewGroupEntries(${group.id}, '${group.name}')" class="btn btn-info btn-small">
-                            View Entries
-                        </button>
-                    </div>
-                    <div id="members-${group.id}" style="display: none; margin-top: 1rem;"></div>
-                </div>
-            `).join('');
+                `;
+            });
+            container.innerHTML = html;
         }
 
-        async function manageGroupMembers(groupId, groupName) {
-            const membersDiv = document.getElementById(`members-${groupId}`);
-            
-            if (membersDiv.style.display === 'none') {
-                try {
-                    const response = await fetch(`/api/admin/group-members/${groupId}`);
-                    const users = await response.json();
-                    
-                    membersDiv.innerHTML = `
-                        <h4>Members of "${groupName}"</h4>
-                        <div class="user-list">
-                            ${users.map(user => `
-                                <div class="user-card ${user.is_member ? 'member' : ''}">
-                                    <div class="user-info">
-                                        <div class="username">${user.username}</div>
-                                        <div class="user-email">${user.email}</div>
-                                    </div>
-                                    ${user.is_member ? 
-                                        `<button onclick="removeUserFromGroup(${user.id}, ${groupId})" class="btn btn-danger btn-small">Remove</button>` :
-                                        `<button onclick="addUserToGroup(${user.id}, ${groupId})" class="btn btn-success btn-small">Add</button>`
-                                    }
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                    membersDiv.style.display = 'block';
-                } catch (error) {
-                    showMessage('Failed to load group members', 'error');
-                }
-            } else {
-                membersDiv.style.display = 'none';
-            }
-        }
-
+        // View Group Entries function
         async function viewGroupEntries(groupId, groupName) {
             try {
-                document.getElementById('entriesModalTitle').textContent = `${groupName} - Photo Entries`;
+                console.log('Loading entries for group:', groupId, groupName);
+                document.getElementById('entriesModalTitle').textContent = groupName + ' - Photo Entries';
                 document.getElementById('entries-container').innerHTML = 'Loading entries...';
                 document.getElementById('entriesModal').style.display = 'block';
                 
-                const response = await fetch(`/api/admin/group-entries/${groupId}`);
+                const response = await fetch('/api/admin/group-entries/' + groupId);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch entries: ' + response.status);
+                }
+                
                 const entries = await response.json();
+                console.log('Received entries:', entries);
                 
                 const container = document.getElementById('entries-container');
                 
@@ -440,12 +430,20 @@
                     return;
                 }
                 
-                container.innerHTML = entries.map((entry, index) => {
+                let html = '';
+                entries.forEach((entry, index) => {
                     const isLeftImage = index % 2 === 0;
                     const layoutClass = isLeftImage ? 'left-image' : 'right-image';
                     const userInitial = entry.username.charAt(0).toUpperCase();
+                    const entryDate = new Date(entry.created_at).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
                     
-                    return `
+                    html += `
                         <div class="entry-card ${layoutClass}">
                             <div class="entry-photo-container">
                                 <img src="${entry.photo_url}" alt="Photo by ${entry.username}" class="entry-photo">
@@ -455,25 +453,21 @@
                                     <div class="user-avatar">${userInitial}</div>
                                     <div class="entry-user-info">
                                         <div class="entry-username">${entry.username}</div>
-                                        <div class="entry-date">${new Date(entry.created_at).toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
-                                        })}</div>
+                                        <div class="entry-date">${entryDate}</div>
                                     </div>
                                 </div>
                                 <p class="entry-description">${entry.description}</p>
                             </div>
                         </div>
                     `;
-                }).join('');
+                });
+                
+                container.innerHTML = html;
                 
             } catch (error) {
                 console.error('Error loading group entries:', error);
                 document.getElementById('entries-container').innerHTML = 
-                    '<div class="error">Failed to load entries. Please try again.</div>';
+                    '<div class="error">Failed to load entries: ' + error.message + '</div>';
             }
         }
 
@@ -488,6 +482,41 @@
             }
         });
 
+        async function manageGroupMembers(groupId, groupName) {
+            const membersDiv = document.getElementById('members-' + groupId);
+            
+            if (membersDiv.style.display === 'none') {
+                try {
+                    const response = await fetch('/api/admin/group-members/' + groupId);
+                    const users = await response.json();
+                    
+                    let html = '<h4>Members of "' + groupName + '"</h4><div class="user-list">';
+                    users.forEach(user => {
+                        html += `
+                            <div class="user-card ${user.is_member ? 'member' : ''}">
+                                <div class="user-info">
+                                    <div class="username">${user.username}</div>
+                                    <div class="user-email">${user.email}</div>
+                                </div>
+                                ${user.is_member ? 
+                                    `<button onclick="removeUserFromGroup(${user.id}, ${groupId})" class="btn btn-danger btn-small">Remove</button>` :
+                                    `<button onclick="addUserToGroup(${user.id}, ${groupId})" class="btn btn-success btn-small">Add</button>`
+                                }
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    
+                    membersDiv.innerHTML = html;
+                    membersDiv.style.display = 'block';
+                } catch (error) {
+                    showMessage('Failed to load group members', 'error');
+                }
+            } else {
+                membersDiv.style.display = 'none';
+            }
+        }
+
         async function addUserToGroup(userId, groupId) {
             try {
                 const response = await fetch('/api/admin/add-user-to-group', {
@@ -499,11 +528,9 @@
                 if (response.ok) {
                     showMessage('User added to group!', 'success');
                     loadGroups();
-                    // Refresh member list
-                    const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
+                    const membersDiv = document.getElementById('members-' + groupId);
                     if (membersDiv.style.display !== 'none') {
                         membersDiv.style.display = 'none';
-                        manageGroupMembers(groupId, '');
                     }
                 }
             } catch (error) {
@@ -522,11 +549,9 @@
                 if (response.ok) {
                     showMessage('User removed from group!', 'success');
                     loadGroups();
-                    // Refresh member list
-                    const membersDiv = document.querySelector(`[id="members-${groupId}"]`);
+                    const membersDiv = document.getElementById('members-' + groupId);
                     if (membersDiv.style.display !== 'none') {
                         membersDiv.style.display = 'none';
-                        manageGroupMembers(groupId, '');
                     }
                 }
             } catch (error) {
@@ -562,7 +587,7 @@
 
         function showMessage(message, type) {
             const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `<div class="${type}">${message}</div>`;
+            messageDiv.innerHTML = '<div class="' + type + '">' + message + '</div>';
             setTimeout(() => messageDiv.innerHTML = '', 3000);
         }
 

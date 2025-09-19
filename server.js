@@ -591,7 +591,6 @@ app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
     try {
         const { groupId } = req.params;
         
-        // Get all submissions from users in this group
         const result = await pool.query(`
             SELECT s.id, s.photo_url, s.description, s.created_at,
                    u.username, u.email, g.name as group_name
