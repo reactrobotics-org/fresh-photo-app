@@ -482,14 +482,24 @@ app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
 app.get('/api/scoreboard', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT u.username, u.email, 
+            SELECT g.name as group_name, 
+                   g.description as group_description,
                    COALESCE(COUNT(s.id), 0) as submission_count,
-                   MAX(s.created_at) as last_submission
-            FROM users u
-            LEFT JOIN submissions s ON u.id = s.user_id
-            GROUP BY u.id, u.username, u.email
-            ORDER BY submission_count DESC, u.username ASC
+                   MAX(s.created_at) as last_submission,
+                   COUNT(DISTINCT ug.user_id) as member_count
+            FROM groups g
+            LEFT JOIN user_groups ug ON g.id = ug.group_id
+            LEFT JOIN submissions s ON ug.user_id = s.user_id
+            GROUP BY g.id, g.name, g.description
+            ORDER BY submission_count DESC, g.name ASC
         `);
+        
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Scoreboard fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch scoreboard' });
+    }
+});
         
         res.json(result.rows);
     } catch (error) {
