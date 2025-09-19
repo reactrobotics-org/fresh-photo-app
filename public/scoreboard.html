@@ -47,14 +47,35 @@
         }
     });
     
-   // Load scoreboard
+// Load scoreboard with debugging
     fetch('/api/scoreboard')
-    .then(response => response.json())
+    .then(response => {
+        console.log('Scoreboard response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .then(groups => {
+        console.log('Scoreboard data received:', groups);
         const contentDiv = document.getElementById('scoreboard-content');
+        
+        // Check if groups is empty or not an array
+        if (!Array.isArray(groups)) {
+            console.error('Groups is not an array:', groups);
+            contentDiv.innerHTML = '<div style="text-align: center; padding: 2rem; color: #e74c3c;">Invalid data format received</div>';
+            return;
+        }
+        
+        if (groups.length === 0) {
+            contentDiv.innerHTML = '<div style="text-align: center; padding: 2rem; color: #7f8c8d;">No groups found. Create some groups in the admin panel first.</div>';
+            return;
+        }
+        
         let html = '<div style="padding: 0; margin: 0; list-style: none;">';
         
         groups.forEach((group, index) => {
+            console.log(`Processing group ${index}:`, group);
             const rank = index + 1;
             let trophy = '';
             
@@ -63,7 +84,7 @@
             else if (rank === 3) trophy = '🥉';
             
             // Use first letter of group name for avatar
-            const groupInitial = group.group_name.charAt(0).toUpperCase();
+            const groupInitial = (group.group_name || 'G').charAt(0).toUpperCase();
             const lastSubmissionText = group.last_submission 
                 ? 'Last entry: ' + new Date(group.last_submission).toLocaleDateString()
                 : 'No entries yet';
@@ -77,29 +98,32 @@
                         ${groupInitial}
                     </div>
                     <div style="flex: 1;">
-                        <div style="font-size: 1.2rem; font-weight: bold; color: #2c3e50; margin-bottom: 0.3rem;">${group.group_name}</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: #2c3e50; margin-bottom: 0.3rem;">${group.group_name || 'Unknown Group'}</div>
                         <div style="color: #7f8c8d; font-size: 0.95rem;">${group.group_description || 'No description'}</div>
                         <div style="color: #95a5a6; font-size: 0.85rem; margin-top: 0.2rem;">
-                            ${group.member_count} ${group.member_count === 1 ? 'member' : 'members'} • ${lastSubmissionText}
+                            ${group.member_count || 0} ${(group.member_count || 0) === 1 ? 'member' : 'members'} • ${lastSubmissionText}
                         </div>
                     </div>
                     <div style="text-align: right;">
-                        <span style="font-size: 2rem; font-weight: bold; color: #e74c3c; display: block;">${group.submission_count}</span>
-                        <span style="color: #7f8c8d; font-size: 0.9rem;">${group.submission_count === 1 ? 'entry' : 'entries'}</span>
+                        <span style="font-size: 2rem; font-weight: bold; color: #e74c3c; display: block;">${group.submission_count || 0}</span>
+                        <span style="color: #7f8c8d; font-size: 0.9rem;">${(group.submission_count || 0) === 1 ? 'entry' : 'entries'}</span>
                     </div>
                 </div>
             `;
         });
         
-        const totalSubmissions = groups.reduce((sum, group) => sum + group.submission_count, 0);
-        const totalMembers = groups.reduce((sum, group) => sum + group.member_count, 0);
+        const totalSubmissions = groups.reduce((sum, group) => sum + (group.submission_count || 0), 0);
+        const totalMembers = groups.reduce((sum, group) => sum + (group.member_count || 0), 0);
         html += '</div>';
         html += `<div style="background: #f8f9fa; padding: 1.5rem 2rem; text-align: center; color: #7f8c8d; border-top: 1px solid #ecf0f1;"><strong>${groups.length}</strong> groups with <strong>${totalMembers}</strong> total members have shared <strong>${totalSubmissions}</strong> entries</div>`;
         
         contentDiv.innerHTML = html;
     })
     .catch(error => {
-        console.error('Failed to load scoreboard:', error);
+        console.error('Scoreboard fetch error:', error);
         document.getElementById('scoreboard-content').innerHTML = 
-            '<div style="text-align: center; padding: 2rem; color: #e74c3c;">Failed to load scoreboard. Please try again.</div>';
+            `<div style="text-align: center; padding: 2rem; color: #e74c3c;">
+                Failed to load scoreboard: ${error.message}<br>
+                <small>Check the browser console for more details</small>
+            </div>`;
     });
