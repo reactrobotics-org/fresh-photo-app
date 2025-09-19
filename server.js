@@ -587,6 +587,29 @@ app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
     }
 });
 
+app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        
+        // Get all submissions from users in this group
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at,
+                   u.username, u.email, g.name as group_name
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            JOIN user_groups ug ON u.id = ug.user_id
+            JOIN groups g ON ug.group_id = g.id
+            WHERE g.id = $1
+            ORDER BY s.created_at DESC
+        `, [groupId]);
+        
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Admin group entries fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch group entries' });
+    }
+});
+
 app.post('/api/admin/add-user-to-group', requireAdmin, async (req, res) => {
     try {
         const { userId, groupId } = req.body;

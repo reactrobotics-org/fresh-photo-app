@@ -121,7 +121,7 @@
             background: #2980b9;
         }
         
-        /* Group entries modal styles */
+        /* Modal styles for viewing entries */
         .modal {
             display: none;
             position: fixed;
@@ -269,6 +269,10 @@
             .modal-content {
                 width: 98%;
                 margin: 1% auto;
+            }
+            .group-actions {
+                flex-direction: column;
+                gap: 0.5rem;
             }
         }
     </style>
@@ -467,6 +471,7 @@
                 }).join('');
                 
             } catch (error) {
+                console.error('Error loading group entries:', error);
                 document.getElementById('entries-container').innerHTML = 
                     '<div class="error">Failed to load entries. Please try again.</div>';
             }
