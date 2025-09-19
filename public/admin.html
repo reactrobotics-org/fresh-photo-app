@@ -96,6 +96,11 @@
             font-size: 0.9em;
             color: #666;
         }
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
         .btn-small {
             padding: 0.4rem 0.8rem;
             font-size: 0.9rem;
@@ -125,6 +130,13 @@
         .btn-info:hover {
             background: #2980b9;
         }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-warning:hover {
+            background: #e67e22;
+        }
         .btn-view-entries {
             background: #3498db !important;
             color: white !important;
@@ -134,7 +146,7 @@
             background: #2980b9 !important;
         }
         
-        /* Modal styles for viewing entries */
+        /* Modal styles */
         .modal {
             display: none;
             position: fixed;
@@ -156,6 +168,9 @@
             overflow-y: auto;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
         }
+        .modal-content.small {
+            max-width: 500px;
+        }
         .modal-header {
             background: #3498db;
             color: white;
@@ -164,6 +179,9 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+        .modal-header.warning {
+            background: #f39c12;
         }
         .modal-header h3 {
             margin: 0;
@@ -181,6 +199,34 @@
         }
         .modal-body {
             padding: 2rem;
+        }
+        .password-form {
+            margin-top: 1rem;
+        }
+        .password-form .form-group {
+            margin-bottom: 1rem;
+        }
+        .password-form label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .password-form input {
+            width: 100%;
+            padding: 0.8rem;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        .password-form input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
         }
         .entry-card {
             border: 2px solid #ddd;
@@ -283,7 +329,8 @@
                 width: 98%;
                 margin: 1% auto;
             }
-            .group-actions {
+            .group-actions,
+            .user-actions {
                 flex-direction: column;
                 gap: 0.5rem;
             }
@@ -323,6 +370,11 @@
         </div>
 
         <div class="admin-section">
+            <h3>Manage Users</h3>
+            <div id="users-container">Loading users...</div>
+        </div>
+
+        <div class="admin-section">
             <h3>Manage Groups</h3>
             <div id="groups-container">Loading groups...</div>
         </div>
@@ -343,7 +395,39 @@
         </div>
     </div>
 
+    <!-- Password Reset Modal -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content small">
+            <div class="modal-header warning">
+                <h3>🔐 Reset Password</h3>
+                <span class="close" onclick="closePasswordModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Reset password for user: <strong id="resetUsername"></strong></p>
+                <form id="passwordResetForm" class="password-form">
+                    <div class="form-group">
+                        <label for="newPassword">New Password:</label>
+                        <input type="password" id="newPassword" name="newPassword" minlength="6" required 
+                               placeholder="Enter new password (min 6 characters)">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password:</label>
+                        <input type="password" id="confirmPassword" name="confirmPassword" minlength="6" required 
+                               placeholder="Confirm new password">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn" onclick="closePasswordModal()">Cancel</button>
+                        <button type="submit" class="btn btn-warning">Reset Password</button>
+                    </div>
+                </form>
+                <div id="passwordMessage"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let currentResetUserId = null;
+
         // Load username
         async function loadUserInfo() {
             try {
@@ -357,6 +441,109 @@
                 console.log('Could not load user info');
             }
         }
+
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch('/api/admin/users');
+                const users = await response.json();
+                displayUsers(users);
+            } catch (error) {
+                document.getElementById('users-container').innerHTML = '<div class="error">Failed to load users</div>';
+            }
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('users-container');
+            if (users.length === 0) {
+                container.innerHTML = '<p>No users found.</p>';
+                return;
+            }
+
+            let html = '<div class="user-list">';
+            users.forEach(user => {
+                const adminBadge = user.is_admin ? '<span style="background: #e74c3c; color: white; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.8rem; margin-left: 0.5rem;">ADMIN</span>' : '';
+                
+                html += `
+                    <div class="user-card">
+                        <div class="user-info">
+                            <div class="username">${user.username}${adminBadge}</div>
+                            <div class="user-email">${user.email}</div>
+                        </div>
+                        <div class="user-actions">
+                            <button onclick="resetUserPassword(${user.id}, '${user.username.replace(/'/g, "\\\'")}')" class="btn btn-warning btn-small">
+                                🔐 Reset Password
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        // Password reset functions
+        function resetUserPassword(userId, username) {
+            currentResetUserId = userId;
+            document.getElementById('resetUsername').textContent = username;
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            document.getElementById('passwordMessage').innerHTML = '';
+            document.getElementById('passwordModal').style.display = 'block';
+        }
+
+        function closePasswordModal() {
+            document.getElementById('passwordModal').style.display = 'none';
+            currentResetUserId = null;
+        }
+
+        document.getElementById('passwordResetForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (newPassword !== confirmPassword) {
+                document.getElementById('passwordMessage').innerHTML = 
+                    '<div class="error">Passwords do not match!</div>';
+                return;
+            }
+            
+            if (newPassword.length < 6) {
+                document.getElementById('passwordMessage').innerHTML = 
+                    '<div class="error">Password must be at least 6 characters long!</div>';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentResetUserId,
+                        newPassword: newPassword
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('passwordMessage').innerHTML = 
+                        '<div class="success">' + result.message + '</div>';
+                    
+                    setTimeout(() => {
+                        closePasswordModal();
+                        showMessage('Password reset successfully!', 'success');
+                    }, 2000);
+                } else {
+                    document.getElementById('passwordMessage').innerHTML = 
+                        '<div class="error">' + result.error + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('passwordMessage').innerHTML = 
+                    '<div class="error">Failed to reset password. Please try again.</div>';
+            }
+        });
 
         // Load groups
         async function loadGroups() {
@@ -475,10 +662,13 @@
             document.getElementById('entriesModal').style.display = 'none';
         }
 
-        // Close modal when clicking outside
+        // Close modals when clicking outside
         window.addEventListener('click', function(e) {
             if (e.target === document.getElementById('entriesModal')) {
                 closeEntriesModal();
+            }
+            if (e.target === document.getElementById('passwordModal')) {
+                closePasswordModal();
             }
         });
 
@@ -597,8 +787,9 @@
             if (response.ok) window.location.href = '/';
         });
 
-        // Load data
+        // Load all data
         loadUserInfo();
+        loadUsers();
         loadGroups();
     </script>
 </body>

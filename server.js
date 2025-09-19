@@ -634,6 +634,46 @@ app.post('/api/admin/remove-user-from-group', requireAdmin, async (req, res) => 
         res.status(500).json({ error: 'Failed to remove user from group' });
     }
 });
+// Add this endpoint to your server.js file with the other admin routes
+
+app.post('/api/admin/reset-password', requireAdmin, async (req, res) => {
+    try {
+        const { userId, newPassword } = req.body;
+        
+        if (!userId || !newPassword) {
+            return res.status(400).json({ error: 'User ID and new password are required' });
+        }
+        
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+        }
+        
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // Update the user's password
+        const result = await pool.query(
+            'UPDATE users SET password = $1 WHERE id = $2 RETURNING username',
+            [hashedPassword, userId]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        
+        const username = result.rows[0].username;
+        console.log(`Admin reset password for user: ${username}`);
+        
+        res.json({ 
+            success: true, 
+            message: `Password reset successfully for user: ${username}` 
+        });
+        
+    } catch (error) {
+        console.error('Password reset error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
