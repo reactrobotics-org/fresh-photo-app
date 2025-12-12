@@ -545,31 +545,36 @@ app.get('/api/export-pdf', requireAuth, async (req, res) => {
         doc.fontSize(10)
            .text(`Total Entries: ${submissions.length}`, { align: 'center' });
 
-        doc.addPage();
-        
-        let currentPage = 2;
+        // Don't add a new page yet - start on title page bottom or new page as needed
+        let currentPage = 1;
+        let isFirstEntry = true;
 
         for (let i = 0; i < submissions.length; i++) {
             const submission = submissions[i];
             
             const estimatedHeight = 
-                30 + 20 + 30 +
+                30 + 20 + 20 + 30 +
                 (Math.ceil(submission.description.length / 80) * 12) +
                 200 + 40;
             
-            if (doc.y + estimatedHeight > doc.page.height - 70) {
-                doc.fontSize(9)
-                   .fillColor('gray')
-                   .text(
-                       `Page ${currentPage}`,
-                       50,
-                       doc.page.height - 50,
-                       { align: 'center' }
-                   )
-                   .fillColor('black');
+            // Check if we need a new page
+            if (isFirstEntry || doc.y + estimatedHeight > doc.page.height - 70) {
+                if (!isFirstEntry) {
+                    // Add page number to current page before moving to next
+                    doc.fontSize(9)
+                       .fillColor('gray')
+                       .text(
+                           `Page ${currentPage}`,
+                           50,
+                           doc.page.height - 50,
+                           { align: 'center' }
+                       )
+                       .fillColor('black');
+                }
                 
                 doc.addPage();
                 currentPage++;
+                isFirstEntry = false;
             }
 
             doc.fontSize(14)
@@ -579,6 +584,14 @@ app.get('/api/export-pdf', requireAuth, async (req, res) => {
             
             doc.moveDown(0.3);
             
+            // Add username
+            doc.fontSize(10)
+               .font('Helvetica-Bold')
+               .text(`Submitted by: ${submission.username}`);
+            
+            doc.moveDown(0.2);
+            
+            // Add date
             doc.fontSize(10)
                .font('Helvetica')
                .text(`Date: ${new Date(submission.created_at).toLocaleDateString('en-US', {
