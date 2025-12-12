@@ -120,6 +120,161 @@ const upload = multer({
         }
     }
 });
+// Add PDFKit and axios to your dependencies
+// Run: npm install pdfkit axios
+
+const PDFDocument = require('pdfkit');
+const axios = require('axios');
+
+// Add this endpoint to your server.js
+app.get('/api/export-pdf', requireAuth, async (req, res) => {
+    try {
+        // Fetch user's submissions
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.user_id = $1
+            ORDER BY s.created_at DESC
+        `, [req.session.userId]);
+        
+        const submissions = result.rows;
+        
+        if (submissions.length === 0) {
+            return res.status(404).json({ error: 'No submissions to export' });
+        }
+
+        // Create PDF document
+        const doc = new PDFDocument({
+            size: 'letter', // 8.5" x 11"
+            margins: {
+                top: 50,
+                bottom: 50,
+                left: 50,
+                right: 50
+            }
+        });
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="notebook-entries-${Date.now()}.pdf"`);
+
+        // Pipe PDF to response
+        doc.pipe(res);
+
+        // Add title page
+        doc.fontSize(24)
+           .font('Helvetica-Bold')
+           .text('Robotics Notebook Entries', { align: 'center' });
+        
+        doc.moveDown();
+        doc.fontSize(14)
+           .font('Helvetica')
+           .text(`Team Member: ${submissions[0].username}`, { align: 'center' });
+        
+        doc.fontSize(12)
+           .text(`Generated: ${new Date().toLocaleDateString('en-US', { 
+               year: 'numeric', 
+               month: 'long', 
+               day: 'numeric',
+               hour: '2-digit',
+               minute: '2-digit'
+           })}`, { align: 'center' });
+        
+        doc.moveDown();
+        doc.fontSize(10)
+           .text(`Total Entries: ${submissions.length}`, { align: 'center' });
+
+        // Process each submission
+        for (let i = 0; i < submissions.length; i++) {
+            const submission = submissions[i];
+            
+            // Add new page for each entry (except first one which is on title page)
+            doc.addPage();
+
+            // Entry header
+            doc.fontSize(16)
+               .font('Helvetica-Bold')
+               .text(`Entry ${i + 1} of ${submissions.length}`, { underline: true });
+            
+            doc.moveDown(0.5);
+            
+            // Date
+            doc.fontSize(12)
+               .font('Helvetica')
+               .text(`Date: ${new Date(submission.created_at).toLocaleDateString('en-US', {
+                   year: 'numeric',
+                   month: 'long',
+                   day: 'numeric',
+                   hour: '2-digit',
+                   minute: '2-digit'
+               })}`);
+            
+            doc.moveDown(1);
+
+            // Try to add image
+            if (submission.photo_url) {
+                try {
+                    // Download image
+                    const imageResponse = await axios.get(submission.photo_url, {
+                        responseType: 'arraybuffer',
+                        timeout: 10000
+                    });
+                    
+                    const imageBuffer = Buffer.from(imageResponse.data);
+                    
+                    // Add image to PDF
+                    doc.image(imageBuffer, {
+                        fit: [500, 300], // Max width 500px, max height 300px
+                        align: 'center'
+                    });
+                    
+                    doc.moveDown(1);
+                } catch (imageError) {
+                    console.error('Failed to load image:', imageError);
+                    doc.fontSize(10)
+                       .fillColor('red')
+                       .text('[Image could not be loaded]', { align: 'center' })
+                       .fillColor('black');
+                    doc.moveDown(1);
+                }
+            }
+
+            // Description
+            doc.fontSize(11)
+               .font('Helvetica-Bold')
+               .text('Description:', { continued: false });
+            
+            doc.moveDown(0.3);
+            
+            doc.fontSize(10)
+               .font('Helvetica')
+               .text(submission.description, {
+                   align: 'left',
+                   width: 500
+               });
+
+            // Add footer with page number
+            const pageNumber = i + 2; // +2 because title page is 1
+            doc.fontSize(9)
+               .fillColor('gray')
+               .text(
+                   `Page ${pageNumber}`,
+                   50,
+                   doc.page.height - 50,
+                   { align: 'center' }
+               )
+               .fillColor('black');
+        }
+
+        // Finalize PDF
+        doc.end();
+
+    } catch (error) {
+        console.error('PDF export error:', error);
+        res.status(500).json({ error: 'Failed to generate PDF: ' + error.message });
+    }
+});
 
 // Helper function to upload to Cloudinary
 function uploadToCloudinary(fileBuffer, options = {}) {

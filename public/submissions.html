@@ -255,7 +255,12 @@
     </nav>
 
     <div class="container">
-        <h2>My Submissions</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2 style="margin: 0;">My Submissions</h2>
+            <button onclick="exportToPDF()" class="btn btn-primary" style="display: flex; align-items: center; gap: 0.5rem;">
+                📄 Export to PDF
+            </button>
+        </div>
         <div id="submissions-container"></div>
     </div>
 
@@ -500,6 +505,44 @@
         // Load both username and submissions when page loads
         loadUserInfo();
         loadSubmissions();
+
+        // Export to PDF function
+        async function exportToPDF() {
+            try {
+                const button = event.target;
+                button.disabled = true;
+                button.textContent = 'Generating PDF...';
+                
+                const response = await fetch('/api/export-pdf');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to generate PDF');
+                }
+                
+                // Get the PDF blob
+                const blob = await response.blob();
+                
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `notebook-entries-${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Cleanup
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                button.disabled = false;
+                button.innerHTML = '📄 Export to PDF';
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Failed to export PDF. Please try again.');
+                event.target.disabled = false;
+                event.target.innerHTML = '📄 Export to PDF';
+            }
+        }
     </script>
 </body>
 </html>
