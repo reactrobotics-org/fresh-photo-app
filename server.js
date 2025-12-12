@@ -185,22 +185,54 @@ app.get('/api/export-pdf', requireAuth, async (req, res) => {
         doc.fontSize(10)
            .text(`Total Entries: ${submissions.length}`, { align: 'center' });
 
+        // Add first entries page
+        doc.addPage();
+        
+        // Track current page for numbering
+        let currentPage = 2;
+
         // Process each submission
         for (let i = 0; i < submissions.length; i++) {
             const submission = submissions[i];
             
-            // Add new page for each entry (except first one which is on title page)
-            doc.addPage();
+            // Estimate space needed for this entry
+            const estimatedHeight = 
+                30 + // Header
+                20 + // Date
+                (submission.photo_url ? 220 : 0) + // Image space
+                30 + // Description label
+                (Math.ceil(submission.description.length / 80) * 12) + // Description text (rough estimate)
+                40; // Padding
+            
+            // Check if we need a new page (leaving 70px for bottom margin and page number)
+            if (doc.y + estimatedHeight > doc.page.height - 70) {
+                // Add page number to current page
+                doc.fontSize(9)
+                   .fillColor('gray')
+                   .text(
+                       `Page ${currentPage}`,
+                       50,
+                       doc.page.height - 50,
+                       { align: 'center' }
+                   )
+                   .fillColor('black');
+                
+                doc.addPage();
+                currentPage++;
+            }
+
+            // Save Y position at start of entry
+            const entryStartY = doc.y;
 
             // Entry header
-            doc.fontSize(16)
+            doc.fontSize(14)
                .font('Helvetica-Bold')
                .text(`Entry ${i + 1} of ${submissions.length}`, { underline: true });
             
-            doc.moveDown(0.5);
+            doc.moveDown(0.3);
             
             // Date
-            doc.fontSize(12)
+            doc.fontSize(10)
                .font('Helvetica')
                .text(`Date: ${new Date(submission.created_at).toLocaleDateString('en-US', {
                    year: 'numeric',
@@ -210,7 +242,7 @@ app.get('/api/export-pdf', requireAuth, async (req, res) => {
                    minute: '2-digit'
                })}`);
             
-            doc.moveDown(1);
+            doc.moveDown(0.5);
 
             // Try to add image
             if (submission.photo_url) {
@@ -223,49 +255,62 @@ app.get('/api/export-pdf', requireAuth, async (req, res) => {
                     
                     const imageBuffer = Buffer.from(imageResponse.data);
                     
-                    // Add image to PDF
+                    // Add image to PDF (smaller size for multiple per page)
                     doc.image(imageBuffer, {
-                        fit: [500, 300], // Max width 500px, max height 300px
+                        fit: [450, 200], // Smaller dimensions
                         align: 'center'
                     });
                     
-                    doc.moveDown(1);
+                    doc.moveDown(0.5);
                 } catch (imageError) {
                     console.error('Failed to load image:', imageError);
-                    doc.fontSize(10)
+                    doc.fontSize(9)
                        .fillColor('red')
                        .text('[Image could not be loaded]', { align: 'center' })
                        .fillColor('black');
-                    doc.moveDown(1);
+                    doc.moveDown(0.5);
                 }
             }
 
             // Description
-            doc.fontSize(11)
+            doc.fontSize(10)
                .font('Helvetica-Bold')
                .text('Description:', { continued: false });
             
-            doc.moveDown(0.3);
+            doc.moveDown(0.2);
             
-            doc.fontSize(10)
+            doc.fontSize(9)
                .font('Helvetica')
                .text(submission.description, {
                    align: 'left',
                    width: 500
                });
 
-            // Add footer with page number
-            const pageNumber = i + 2; // +2 because title page is 1
-            doc.fontSize(9)
-               .fillColor('gray')
-               .text(
-                   `Page ${pageNumber}`,
-                   50,
-                   doc.page.height - 50,
-                   { align: 'center' }
-               )
-               .fillColor('black');
+            // Add spacing between entries
+            doc.moveDown(1);
+            
+            // Draw separator line between entries (except for last entry)
+            if (i < submissions.length - 1) {
+                doc.strokeColor('#cccccc')
+                   .lineWidth(1)
+                   .moveTo(50, doc.y)
+                   .lineTo(doc.page.width - 50, doc.y)
+                   .stroke();
+                
+                doc.moveDown(1);
+            }
         }
+
+        // Add page number to final page
+        doc.fontSize(9)
+           .fillColor('gray')
+           .text(
+               `Page ${currentPage}`,
+               50,
+               doc.page.height - 50,
+               { align: 'center' }
+           )
+           .fillColor('black');
 
         // Finalize PDF
         doc.end();
