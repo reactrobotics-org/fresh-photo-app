@@ -6,6 +6,8 @@ const { Pool } = require('pg');
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
 const bodyParser = require('body-parser');
+const PDFDocument = require('pdfkit');
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -120,206 +122,6 @@ const upload = multer({
         }
     }
 });
-// Add PDFKit and axios to your dependencies
-// Run: npm install pdfkit axios
-
-const PDFDocument = require('pdfkit');
-const axios = require('axios');
-
-// Add this endpoint to your server.js
-app.get('/api/export-pdf', requireAuth, async (req, res) => {
-    try {
-        // Fetch user's submissions
-        const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
-            FROM submissions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.user_id = $1
-            ORDER BY s.created_at DESC
-        `, [req.session.userId]);
-        
-        const submissions = result.rows;
-        
-        if (submissions.length === 0) {
-            return res.status(404).json({ error: 'No submissions to export' });
-        }
-
-        // Create PDF document
-        const doc = new PDFDocument({
-            size: 'letter', // 8.5" x 11"
-            margins: {
-                top: 50,
-                bottom: 50,
-                left: 50,
-                right: 50
-            }
-        });
-
-        // Set response headers
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="notebook-entries-${Date.now()}.pdf"`);
-
-        // Pipe PDF to response
-        doc.pipe(res);
-
-        // Add title page
-        doc.fontSize(24)
-           .font('Helvetica-Bold')
-           .text('Robotics Notebook Entries', { align: 'center' });
-        
-        doc.moveDown();
-        doc.fontSize(14)
-           .font('Helvetica')
-           .text(`Team Member: ${submissions[0].username}`, { align: 'center' });
-        
-        doc.fontSize(12)
-           .text(`Generated: ${new Date().toLocaleDateString('en-US', { 
-               year: 'numeric', 
-               month: 'long', 
-               day: 'numeric',
-               hour: '2-digit',
-               minute: '2-digit'
-           })}`, { align: 'center' });
-        
-        doc.moveDown();
-        doc.fontSize(10)
-           .text(`Total Entries: ${submissions.length}`, { align: 'center' });
-
-        // Add first entries page
-        doc.addPage();
-        
-        // Track current page for numbering
-        let currentPage = 2;
-
-        // Process each submission
-        for (let i = 0; i < submissions.length; i++) {
-            const submission = submissions[i];
-            
-            // Estimate space needed for this entry
-            const estimatedHeight = 
-                30 + // Header
-                20 + // Date
-                (submission.photo_url ? 220 : 0) + // Image space
-                30 + // Description label
-                (Math.ceil(submission.description.length / 80) * 12) + // Description text (rough estimate)
-                40; // Padding
-            
-            // Check if we need a new page (leaving 70px for bottom margin and page number)
-            if (doc.y + estimatedHeight > doc.page.height - 70) {
-                // Add page number to current page
-                doc.fontSize(9)
-                   .fillColor('gray')
-                   .text(
-                       `Page ${currentPage}`,
-                       50,
-                       doc.page.height - 50,
-                       { align: 'center' }
-                   )
-                   .fillColor('black');
-                
-                doc.addPage();
-                currentPage++;
-            }
-
-            // Save Y position at start of entry
-            const entryStartY = doc.y;
-
-            // Entry header
-            doc.fontSize(14)
-               .font('Helvetica-Bold')
-               .text(`Entry ${i + 1} of ${submissions.length}`, { underline: true });
-            
-            doc.moveDown(0.3);
-            
-            // Date
-            doc.fontSize(10)
-               .font('Helvetica')
-               .text(`Date: ${new Date(submission.created_at).toLocaleDateString('en-US', {
-                   year: 'numeric',
-                   month: 'long',
-                   day: 'numeric',
-                   hour: '2-digit',
-                   minute: '2-digit'
-               })}`);
-            
-            doc.moveDown(0.5);
-
-            // Try to add image
-            if (submission.photo_url) {
-                try {
-                    // Download image
-                    const imageResponse = await axios.get(submission.photo_url, {
-                        responseType: 'arraybuffer',
-                        timeout: 10000
-                    });
-                    
-                    const imageBuffer = Buffer.from(imageResponse.data);
-                    
-                    // Add image to PDF (smaller size for multiple per page)
-                    doc.image(imageBuffer, {
-                        fit: [450, 200], // Smaller dimensions
-                        align: 'center'
-                    });
-                    
-                    doc.moveDown(0.5);
-                } catch (imageError) {
-                    console.error('Failed to load image:', imageError);
-                    doc.fontSize(9)
-                       .fillColor('red')
-                       .text('[Image could not be loaded]', { align: 'center' })
-                       .fillColor('black');
-                    doc.moveDown(0.5);
-                }
-            }
-
-            // Description
-            doc.fontSize(10)
-               .font('Helvetica-Bold')
-               .text('Description:', { continued: false });
-            
-            doc.moveDown(0.2);
-            
-            doc.fontSize(9)
-               .font('Helvetica')
-               .text(submission.description, {
-                   align: 'left',
-                   width: 500
-               });
-
-            // Add spacing between entries
-            doc.moveDown(1);
-            
-            // Draw separator line between entries (except for last entry)
-            if (i < submissions.length - 1) {
-                doc.strokeColor('#cccccc')
-                   .lineWidth(1)
-                   .moveTo(50, doc.y)
-                   .lineTo(doc.page.width - 50, doc.y)
-                   .stroke();
-                
-                doc.moveDown(1);
-            }
-        }
-
-        // Add page number to final page
-        doc.fontSize(9)
-           .fillColor('gray')
-           .text(
-               `Page ${currentPage}`,
-               50,
-               doc.page.height - 50,
-               { align: 'center' }
-           )
-           .fillColor('black');
-
-        // Finalize PDF
-        doc.end();
-
-    } catch (error) {
-        console.error('PDF export error:', error);
-        res.status(500).json({ error: 'Failed to generate PDF: ' + error.message });
-    }
-});
 
 // Helper function to upload to Cloudinary
 function uploadToCloudinary(fileBuffer, options = {}) {
@@ -327,10 +129,10 @@ function uploadToCloudinary(fileBuffer, options = {}) {
         cloudinary.uploader.upload_stream(
             {
                 resource_type: 'image',
-                folder: 'photo-submissions', // Organize photos in a folder
+                folder: 'photo-submissions',
                 transformation: [
-                    { width: 1200, height: 1200, crop: 'limit' }, // Max size
-                    { quality: 'auto:good' } // Auto quality optimization
+                    { width: 1200, height: 1200, crop: 'limit' },
+                    { quality: 'auto:good' }
                 ],
                 ...options
             },
@@ -406,99 +208,6 @@ app.get('/group-submissions', requireAuth, (req, res) => {
 });
 
 // API Routes
-
-// Get a single submission for editing
-app.get('/api/submission/:id', requireAuth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
-            FROM submissions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.id = $1 AND s.user_id = $2
-        `, [id, req.session.userId]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Submission not found or unauthorized' });
-        }
-        
-        res.json(result.rows[0]);
-    } catch (error) {
-        console.error('Get submission error:', error);
-        res.status(500).json({ error: 'Failed to fetch submission' });
-    }
-});
-
-// Update a submission
-app.put('/api/submission/:id', requireAuth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { description } = req.body;
-        
-        if (!description || description.trim().length === 0) {
-            return res.status(400).json({ error: 'Description is required' });
-        }
-        
-        if (description.length > 500) {
-            return res.status(400).json({ error: 'Description must be 500 characters or less' });
-        }
-        
-        const result = await pool.query(`
-            UPDATE submissions 
-            SET description = $1 
-            WHERE id = $2 AND user_id = $3 
-            RETURNING id
-        `, [description.trim(), id, req.session.userId]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'Submission not found or unauthorized' });
-        }
-        
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Update submission error:', error);
-        res.status(500).json({ error: 'Failed to update submission' });
-    }
-});
-
-// Delete a submission
-app.delete('/api/submission/:id', requireAuth, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        // First, get the submission to delete the photo from Cloudinary
-        const submissionResult = await pool.query(`
-            SELECT cloudinary_id 
-            FROM submissions 
-            WHERE id = $1 AND user_id = $2
-        `, [id, req.session.userId]);
-        
-        if (submissionResult.rows.length === 0) {
-            return res.status(404).json({ error: 'Submission not found or unauthorized' });
-        }
-        
-        // Delete from Cloudinary if cloudinary_id exists
-        const cloudinaryId = submissionResult.rows[0].cloudinary_id;
-        if (cloudinaryId) {
-            try {
-                await cloudinary.uploader.destroy(cloudinaryId);
-                console.log('Deleted from Cloudinary:', cloudinaryId);
-            } catch (cloudinaryError) {
-                console.error('Failed to delete from Cloudinary:', cloudinaryError);
-                // Continue with database deletion even if Cloudinary fails
-            }
-        }
-        
-        // Delete from database
-        await pool.query('DELETE FROM submissions WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-        
-        res.json({ success: true });
-    } catch (error) {
-        console.error('Delete submission error:', error);
-        res.status(500).json({ error: 'Failed to delete submission' });
-    }
-});
-
 app.get('/api/user-info', requireAuth, async (req, res) => {
     try {
         const result = await pool.query('SELECT username FROM users WHERE id = $1', [req.session.userId]);
@@ -573,12 +282,10 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
     try {
         console.log('Uploading to Cloudinary...');
         
-        // Upload to Cloudinary
         const result = await uploadToCloudinary(req.file.buffer);
         
         console.log('Cloudinary upload successful:', result.public_id);
 
-        // Save to database with placeholder for photo_path (since it's NOT NULL)
         await pool.query(
             'INSERT INTO submissions (user_id, photo_path, photo_url, cloudinary_id, description) VALUES ($1, $2, $3, $4, $5)',
             [req.session.userId, 'cloudinary', result.secure_url, result.public_id, description]
@@ -651,7 +358,6 @@ app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
     try {
         const { groupId } = req.params;
         
-        // First check if user is member of this group
         const memberCheck = await pool.query(
             'SELECT 1 FROM user_groups WHERE user_id = $1 AND group_id = $2',
             [req.session.userId, groupId]
@@ -661,7 +367,6 @@ app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
             return res.status(403).json({ error: 'Not a member of this group' });
         }
         
-        // Get submissions from all members of this group
         const result = await pool.query(`
             SELECT s.id, s.photo_url, s.description, s.created_at,
                    u.username, g.name as group_name
@@ -683,22 +388,293 @@ app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
 app.get('/api/scoreboard', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT g.name as group_name, 
-                   g.description as group_description,
+            SELECT u.username, u.email, 
                    COALESCE(COUNT(s.id), 0) as submission_count,
-                   MAX(s.created_at) as last_submission,
-                   COUNT(DISTINCT ug.user_id) as member_count
-            FROM groups g
-            LEFT JOIN user_groups ug ON g.id = ug.group_id
-            LEFT JOIN submissions s ON ug.user_id = s.user_id
-            GROUP BY g.id, g.name, g.description
-            ORDER BY submission_count DESC, g.name ASC
+                   MAX(s.created_at) as last_submission
+            FROM users u
+            LEFT JOIN submissions s ON u.id = s.user_id
+            GROUP BY u.id, u.username, u.email
+            ORDER BY submission_count DESC, u.username ASC
         `);
         
         res.json(result.rows);
     } catch (error) {
-        console.error('Scoreboard fetch error:', error);
         res.status(500).json({ error: 'Failed to fetch scoreboard' });
+    }
+});
+
+// Edit/Delete submission endpoints
+app.get('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.id = $1 AND s.user_id = $2
+        `, [id, req.session.userId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error('Get submission error:', error);
+        res.status(500).json({ error: 'Failed to fetch submission' });
+    }
+});
+
+app.put('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { description } = req.body;
+        
+        if (!description || description.trim().length === 0) {
+            return res.status(400).json({ error: 'Description is required' });
+        }
+        
+        if (description.length > 500) {
+            return res.status(400).json({ error: 'Description must be 500 characters or less' });
+        }
+        
+        const result = await pool.query(`
+            UPDATE submissions 
+            SET description = $1 
+            WHERE id = $2 AND user_id = $3 
+            RETURNING id
+        `, [description.trim(), id, req.session.userId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Update submission error:', error);
+        res.status(500).json({ error: 'Failed to update submission' });
+    }
+});
+
+app.delete('/api/submission/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const submissionResult = await pool.query(`
+            SELECT cloudinary_id 
+            FROM submissions 
+            WHERE id = $1 AND user_id = $2
+        `, [id, req.session.userId]);
+        
+        if (submissionResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Submission not found or unauthorized' });
+        }
+        
+        const cloudinaryId = submissionResult.rows[0].cloudinary_id;
+        if (cloudinaryId) {
+            try {
+                await cloudinary.uploader.destroy(cloudinaryId);
+                console.log('Deleted from Cloudinary:', cloudinaryId);
+            } catch (cloudinaryError) {
+                console.error('Failed to delete from Cloudinary:', cloudinaryError);
+            }
+        }
+        
+        await pool.query('DELETE FROM submissions WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete submission error:', error);
+        res.status(500).json({ error: 'Failed to delete submission' });
+    }
+});
+
+// PDF Export endpoint
+app.get('/api/export-pdf', requireAuth, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT s.id, s.photo_url, s.description, s.created_at, u.username
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.user_id = $1
+            ORDER BY s.created_at DESC
+        `, [req.session.userId]);
+        
+        const submissions = result.rows;
+        
+        if (submissions.length === 0) {
+            return res.status(404).json({ error: 'No submissions to export' });
+        }
+
+        const doc = new PDFDocument({
+            size: 'letter',
+            margins: {
+                top: 50,
+                bottom: 50,
+                left: 50,
+                right: 50
+            },
+            bufferPages: true
+        });
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="notebook-entries-${Date.now()}.pdf"`);
+
+        doc.pipe(res);
+
+        // Title page
+        doc.fontSize(24)
+           .font('Helvetica-Bold')
+           .text('Robotics Notebook Entries', { align: 'center' });
+        
+        doc.moveDown();
+        doc.fontSize(14)
+           .font('Helvetica')
+           .text(`Team Member: ${submissions[0].username}`, { align: 'center' });
+        
+        doc.fontSize(12)
+           .text(`Generated: ${new Date().toLocaleDateString('en-US', { 
+               year: 'numeric', 
+               month: 'long', 
+               day: 'numeric',
+               hour: '2-digit',
+               minute: '2-digit'
+           })}`, { align: 'center' });
+        
+        doc.moveDown();
+        doc.fontSize(10)
+           .text(`Total Entries: ${submissions.length}`, { align: 'center' });
+
+        doc.addPage();
+        
+        let currentPage = 2;
+
+        for (let i = 0; i < submissions.length; i++) {
+            const submission = submissions[i];
+            
+            const estimatedHeight = 
+                30 + 20 + 30 +
+                (Math.ceil(submission.description.length / 80) * 12) +
+                200 + 40;
+            
+            if (doc.y + estimatedHeight > doc.page.height - 70) {
+                doc.fontSize(9)
+                   .fillColor('gray')
+                   .text(
+                       `Page ${currentPage}`,
+                       50,
+                       doc.page.height - 50,
+                       { align: 'center' }
+                   )
+                   .fillColor('black');
+                
+                doc.addPage();
+                currentPage++;
+            }
+
+            doc.fontSize(14)
+               .font('Helvetica-Bold')
+               .fillColor('black')
+               .text(`Entry ${i + 1} of ${submissions.length}`, { underline: true });
+            
+            doc.moveDown(0.3);
+            
+            doc.fontSize(10)
+               .font('Helvetica')
+               .text(`Date: ${new Date(submission.created_at).toLocaleDateString('en-US', {
+                   year: 'numeric',
+                   month: 'long',
+                   day: 'numeric',
+                   hour: '2-digit',
+                   minute: '2-digit'
+               })}`);
+            
+            doc.moveDown(0.5);
+
+            if (submission.photo_url) {
+                try {
+                    console.log('Downloading image:', submission.photo_url);
+                    
+                    const imageResponse = await axios.get(submission.photo_url, {
+                        responseType: 'arraybuffer',
+                        timeout: 15000,
+                        headers: {
+                            'Accept': 'image/*'
+                        }
+                    });
+                    
+                    if (imageResponse.status === 200 && imageResponse.data) {
+                        const imageBuffer = Buffer.from(imageResponse.data);
+                        
+                        if (imageBuffer.length > 0) {
+                            doc.image(imageBuffer, {
+                                fit: [450, 200],
+                                align: 'center'
+                            });
+                            console.log('Image added successfully');
+                        } else {
+                            throw new Error('Empty image buffer');
+                        }
+                    }
+                    
+                    doc.moveDown(0.5);
+                } catch (imageError) {
+                    console.error('Failed to load image for entry', i, ':', imageError.message);
+                    doc.fontSize(9)
+                       .fillColor('red')
+                       .text('[Image unavailable]', { align: 'center' })
+                       .fillColor('black');
+                    doc.moveDown(0.5);
+                }
+            }
+
+            doc.fontSize(10)
+               .font('Helvetica-Bold')
+               .fillColor('black')
+               .text('Description:', { continued: false });
+            
+            doc.moveDown(0.2);
+            
+            doc.fontSize(9)
+               .font('Helvetica')
+               .text(submission.description, {
+                   align: 'left',
+                   width: 500
+               });
+
+            doc.moveDown(1);
+            
+            if (i < submissions.length - 1) {
+                doc.strokeColor('#cccccc')
+                   .lineWidth(1)
+                   .moveTo(50, doc.y)
+                   .lineTo(doc.page.width - 50, doc.y)
+                   .stroke();
+                
+                doc.moveDown(1);
+            }
+        }
+
+        doc.fontSize(9)
+           .fillColor('gray')
+           .text(
+               `Page ${currentPage}`,
+               50,
+               doc.page.height - 50,
+               { align: 'center' }
+           )
+           .fillColor('black');
+
+        doc.end();
+
+        console.log('PDF generation completed successfully');
+
+    } catch (error) {
+        console.error('PDF export error:', error);
+        
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to generate PDF: ' + error.message });
+        }
     }
 });
 
@@ -764,51 +740,6 @@ app.get('/api/admin/group-members/:groupId', requireAdmin, async (req, res) => {
     }
 });
 
-app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
-    try {
-        const { groupId } = req.params;
-        
-        // Get all submissions from users in this group
-        const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at,
-                   u.username, u.email, g.name as group_name
-            FROM submissions s
-            JOIN users u ON s.user_id = u.id
-            JOIN user_groups ug ON u.id = ug.user_id
-            JOIN groups g ON ug.group_id = g.id
-            WHERE g.id = $1
-            ORDER BY s.created_at DESC
-        `, [groupId]);
-        
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Admin group entries fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch group entries' });
-    }
-});
-
-app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
-    try {
-        const { groupId } = req.params;
-        
-        const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at,
-                   u.username, u.email, g.name as group_name
-            FROM submissions s
-            JOIN users u ON s.user_id = u.id
-            JOIN user_groups ug ON u.id = ug.user_id
-            JOIN groups g ON ug.group_id = g.id
-            WHERE g.id = $1
-            ORDER BY s.created_at DESC
-        `, [groupId]);
-        
-        res.json(result.rows);
-    } catch (error) {
-        console.error('Admin group entries fetch error:', error);
-        res.status(500).json({ error: 'Failed to fetch group entries' });
-    }
-});
-
 app.post('/api/admin/add-user-to-group', requireAdmin, async (req, res) => {
     try {
         const { userId, groupId } = req.body;
@@ -832,46 +763,6 @@ app.post('/api/admin/remove-user-from-group', requireAdmin, async (req, res) => 
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Failed to remove user from group' });
-    }
-});
-// Add this endpoint to your server.js file with the other admin routes
-
-app.post('/api/admin/reset-password', requireAdmin, async (req, res) => {
-    try {
-        const { userId, newPassword } = req.body;
-        
-        if (!userId || !newPassword) {
-            return res.status(400).json({ error: 'User ID and new password are required' });
-        }
-        
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters long' });
-        }
-        
-        // Hash the new password
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        
-        // Update the user's password
-        const result = await pool.query(
-            'UPDATE users SET password = $1 WHERE id = $2 RETURNING username',
-            [hashedPassword, userId]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-        
-        const username = result.rows[0].username;
-        console.log(`Admin reset password for user: ${username}`);
-        
-        res.json({ 
-            success: true, 
-            message: `Password reset successfully for user: ${username}` 
-        });
-        
-    } catch (error) {
-        console.error('Password reset error:', error);
-        res.status(500).json({ error: 'Failed to reset password' });
     }
 });
 
