@@ -28,6 +28,14 @@
             </div>
             
             <div class="form-group">
+                <label for="photoDate">Date Photo Was Taken:</label>
+                <input type="date" id="photoDate" name="photoDate" max="" required>
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    Select the date this photo was taken
+                </small>
+            </div>
+            
+            <div class="form-group">
                 <label for="description">Description:</label>
                 <textarea id="description" name="description" rows="4" maxlength="500"
                           placeholder="Write a few sentences describing your photo..." required></textarea>
@@ -60,6 +68,11 @@
 
         // Load username when page loads
         loadUserInfo();
+
+        // Set date picker to today by default and set max date to today
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('photoDate').value = today;
+        document.getElementById('photoDate').max = today;
 
         // Character counter for description
         document.getElementById('description').addEventListener('input', function(e) {
@@ -166,6 +179,7 @@
             const formData = new FormData();
             formData.append('photo', compressedFile, 'compressed-photo.jpg');
             formData.append('description', document.getElementById('description').value);
+            formData.append('photoDate', document.getElementById('photoDate').value);
             
             try {
                 document.getElementById('message').innerHTML = 

@@ -215,9 +215,13 @@
                                     <div class="user-info">
                                         <div class="username">${submission.username}</div>
                                         <div class="user-email">${submission.email}</div>
-                                        <div class="post-time">${new Date(submission.created_at).toLocaleDateString('en-US', {
+                                        <div class="post-time">📷 ${new Date(submission.photo_date || submission.created_at).toLocaleDateString('en-US', {
                                             year: 'numeric',
                                             month: 'long',
+                                            day: 'numeric'
+                                        })}</div>
+                                        <div class="post-time" style="font-size: 0.85em; color: #95a5a6;">Submitted: ${new Date(submission.created_at).toLocaleDateString('en-US', {
+                                            month: 'short',
                                             day: 'numeric',
                                             hour: '2-digit',
                                             minute: '2-digit'

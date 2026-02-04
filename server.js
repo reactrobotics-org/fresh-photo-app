@@ -65,8 +65,22 @@ async function createTables() {
                 photo_url VARCHAR(500),
                 cloudinary_id VARCHAR(255),
                 description TEXT NOT NULL,
+                photo_date DATE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
+        `);
+
+        // Add photo_date column if it doesn't exist (for existing databases)
+        await pool.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'submissions' AND column_name = 'photo_date'
+                ) THEN
+                    ALTER TABLE submissions ADD COLUMN photo_date DATE;
+                END IF;
+            END $$;
         `);
 
         // Create admin user if doesn't exist
@@ -273,7 +287,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) => {
-    const { description } = req.body;
+    const { description, photoDate } = req.body;
     
     if (!req.file || !description) {
         return res.status(400).json({ error: 'Photo and description are required' });
@@ -287,8 +301,8 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
         console.log('Cloudinary upload successful:', result.public_id);
 
         await pool.query(
-            'INSERT INTO submissions (user_id, photo_path, photo_url, cloudinary_id, description) VALUES ($1, $2, $3, $4, $5)',
-            [req.session.userId, 'cloudinary', result.secure_url, result.public_id, description]
+            'INSERT INTO submissions (user_id, photo_path, photo_url, cloudinary_id, description, photo_date) VALUES ($1, $2, $3, $4, $5, $6)',
+            [req.session.userId, 'cloudinary', result.secure_url, result.public_id, description, photoDate || new Date().toISOString().split('T')[0]]
         );
         
         res.json({ success: true });
@@ -301,7 +315,7 @@ app.post('/api/submit', requireAuth, upload.single('photo'), async (req, res) =>
 app.get('/api/my-submissions', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT DISTINCT s.id, s.user_id, s.photo_url, s.description, s.created_at, u.username
+            SELECT DISTINCT s.id, s.user_id, s.photo_url, s.description, s.photo_date, s.created_at, u.username
             FROM submissions s
             JOIN users u ON s.user_id = u.id
             WHERE s.user_id IN (
@@ -310,7 +324,7 @@ app.get('/api/my-submissions', requireAuth, async (req, res) => {
                 JOIN user_groups ug2 ON ug1.group_id = ug2.group_id
                 WHERE ug1.user_id = $1
             ) OR s.user_id = $1
-            ORDER BY s.created_at DESC
+            ORDER BY s.photo_date DESC, s.created_at DESC
         `, [req.session.userId]);
         
         res.json(result.rows);
@@ -323,11 +337,11 @@ app.get('/api/my-submissions', requireAuth, async (req, res) => {
 app.get('/api/all-submissions', requireAuth, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at, 
+            SELECT s.id, s.photo_url, s.description, s.photo_date, s.created_at, 
                    u.username, u.email
             FROM submissions s
             JOIN users u ON s.user_id = u.id
-            ORDER BY s.created_at DESC
+            ORDER BY s.photo_date DESC, s.created_at DESC
         `);
         
         res.json(result.rows);
@@ -368,14 +382,14 @@ app.get('/api/group-submissions/:groupId', requireAuth, async (req, res) => {
         }
         
         const result = await pool.query(`
-            SELECT s.id, s.photo_url, s.description, s.created_at,
+            SELECT s.id, s.photo_url, s.description, s.photo_date, s.created_at,
                    u.username, g.name as group_name
             FROM submissions s
             JOIN users u ON s.user_id = u.id
             JOIN user_groups ug ON u.id = ug.user_id
             JOIN groups g ON ug.group_id = g.id
             WHERE g.id = $1
-            ORDER BY s.created_at DESC
+            ORDER BY s.photo_date DESC, s.created_at DESC
         `, [groupId]);
         
         res.json(result.rows);
@@ -790,7 +804,7 @@ app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
             JOIN user_groups ug ON u.id = ug.user_id
             JOIN groups g ON ug.group_id = g.id
             WHERE ug.group_id = $1
-            ORDER BY s.created_at DESC
+            ORDER BY s.photo_date DESC, s.created_at DESC
         `, [groupId]);
         res.json(result.rows);
     } catch (error) {
