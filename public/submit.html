@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Submission - Photo Submission App</title>
     <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
     <nav>
@@ -93,19 +94,37 @@
         // Image compression function
         function compressImage(file, maxWidth = 1200, quality = 0.8) {
             return new Promise((resolve, reject) => {
+                // Check if file is an image
+                if (!file.type.match(/image.*/)) {
+                    reject(new Error('File is not an image'));
+                    return;
+                }
+
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
 
+                // Set timeout in case image takes too long to load
+                const timeout = setTimeout(() => {
+                    reject(new Error('Image load timeout'));
+                }, 10000); // 10 second timeout
+
                 img.onload = function() {
+                    clearTimeout(timeout);
+                    
                     try {
                         // Calculate new dimensions
-                        let { width, height } = img;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        console.log('Original dimensions:', width, 'x', height);
                         
                         if (width > maxWidth) {
-                            height = (height * maxWidth) / width;
+                            height = Math.round((height * maxWidth) / width);
                             width = maxWidth;
                         }
+                        
+                        console.log('Compressed dimensions:', width, 'x', height);
                         
                         // Set canvas dimensions
                         canvas.width = width;
@@ -114,32 +133,81 @@
                         // Draw and compress
                         ctx.drawImage(img, 0, 0, width, height);
                         
+                        // Convert to blob
                         canvas.toBlob((blob) => {
-                            if (blob) {
+                            // Clean up
+                            URL.revokeObjectURL(img.src);
+                            
+                            if (blob && blob.size > 0) {
+                                console.log('Blob created successfully:', blob.size, 'bytes');
                                 resolve(blob);
                             } else {
-                                reject(new Error('Canvas toBlob failed'));
+                                reject(new Error('Canvas toBlob returned null or empty blob'));
                             }
                         }, 'image/jpeg', quality);
+                        
                     } catch (error) {
+                        clearTimeout(timeout);
+                        URL.revokeObjectURL(img.src);
                         reject(error);
                     }
                 };
 
-                img.onerror = function() {
-                    reject(new Error('Image load failed'));
+                img.onerror = function(e) {
+                    clearTimeout(timeout);
+                    URL.revokeObjectURL(img.src);
+                    console.error('Image load error:', e);
+                    reject(new Error('Failed to load image'));
                 };
 
-                img.src = URL.createObjectURL(file);
+                // Create object URL and load image
+                try {
+                    const objectUrl = URL.createObjectURL(file);
+                    console.log('Created object URL:', objectUrl);
+                    img.src = objectUrl;
+                } catch (error) {
+                    clearTimeout(timeout);
+                    reject(new Error('Failed to create object URL: ' + error.message));
+                }
             });
         }
 
         // Photo selection and compression
         document.getElementById('photo').addEventListener('change', async function(e) {
-            const file = e.target.files[0];
+            let file = e.target.files[0];
             if (!file) return;
 
             console.log('File selected:', file.name, file.type, file.size);
+
+            // Check if file is HEIC and convert to JPEG
+            if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+                console.log('HEIC file detected, converting to JPEG...');
+                document.getElementById('compressionInfo').innerHTML = 
+                    `Converting HEIC to JPEG...`;
+                document.getElementById('compressionInfo').style.color = '#3498db';
+                
+                try {
+                    const convertedBlob = await heic2any({
+                        blob: file,
+                        toType: 'image/jpeg',
+                        quality: 0.9
+                    });
+                    
+                    // Create a new File object from the blob
+                    file = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
+                        type: 'image/jpeg',
+                        lastModified: Date.now()
+                    });
+                    
+                    console.log('HEIC converted successfully:', file.size);
+                } catch (error) {
+                    console.error('HEIC conversion failed:', error);
+                    document.getElementById('compressionInfo').innerHTML = 
+                        `HEIC conversion failed. Please use JPG or PNG format.`;
+                    document.getElementById('compressionInfo').style.color = '#e74c3c';
+                    return;
+                }
+            }
 
             // Show original file info
             const originalSizeKB = Math.round(file.size / 1024);
