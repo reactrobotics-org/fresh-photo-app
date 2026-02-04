@@ -126,10 +126,11 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
     fileFilter: function (req, file, cb) {
-        const filetypes = /jpeg|jpg|png|gif|webp/;
-        const mimetype = filetypes.test(file.mimetype);
+        const filetypes = /jpeg|jpg|png|gif|webp|heic|heif/;
+        const mimetype = filetypes.test(file.mimetype) || file.mimetype === 'image/heic' || file.mimetype === 'image/heif';
+        const extname = filetypes.test(file.originalname.toLowerCase());
         
-        if (mimetype) {
+        if (mimetype || extname) {
             return cb(null, true);
         } else {
             cb(new Error('Only image files are allowed!'));

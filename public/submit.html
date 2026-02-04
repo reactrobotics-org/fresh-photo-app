@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Submission - Photo Submission App</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 </head>
 <body>
     <nav>
@@ -179,39 +178,20 @@
 
             console.log('File selected:', file.name, file.type, file.size);
 
-            // Check if file is HEIC and convert to JPEG
+            // Check if file is HEIC - skip compression and upload directly
             if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
-                console.log('HEIC file detected, converting to JPEG...');
+                console.log('HEIC file detected - uploading directly (Cloudinary will convert)');
                 document.getElementById('compressionInfo').innerHTML = 
-                    `Converting HEIC to JPEG...`;
+                    `HEIC file - will be converted on upload`;
                 document.getElementById('compressionInfo').style.color = '#3498db';
                 
-                try {
-                    let convertedBlob = await heic2any({
-                        blob: file,
-                        toType: 'image/jpeg',
-                        quality: 0.9
-                    });
-                    
-                    // heic2any sometimes returns an array of blobs
-                    if (Array.isArray(convertedBlob)) {
-                        convertedBlob = convertedBlob[0];
-                    }
-                    
-                    // Create a new File object from the blob
-                    file = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
-                        type: 'image/jpeg',
-                        lastModified: Date.now()
-                    });
-                    
-                    console.log('HEIC converted successfully:', file.size, file.type);
-                } catch (error) {
-                    console.error('HEIC conversion failed:', error);
-                    document.getElementById('compressionInfo').innerHTML = 
-                        `HEIC conversion failed: ${error.message}. Please use JPG or PNG format.`;
-                    document.getElementById('compressionInfo').style.color = '#e74c3c';
-                    return;
-                }
+                // Use HEIC file directly, no compression
+                compressedFile = file;
+                
+                // Show a placeholder preview (can't preview HEIC in browser)
+                document.getElementById('photoPreview').innerHTML = 
+                    '<div style="padding: 2rem; background: #ecf0f1; border-radius: 10px; text-align: center;">📷<br>HEIC file ready to upload<br><small>Preview will be available after upload</small></div>';
+                return;
             }
 
             // Show original file info
@@ -247,7 +227,7 @@
                     `Compression failed, using original file`;
                 document.getElementById('compressionInfo').style.color = '#f39c12';
                 
-                // Fallback to original file (which is now converted from HEIC if needed)
+                // Fallback to original file
                 compressedFile = file;
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -255,9 +235,6 @@
                         '<img src="' + e.target.result + '" alt="Preview" style="max-width: 300px; max-height: 300px;">';
                 };
                 reader.readAsDataURL(file);
-                
-                // Show preview even if compression failed
-                console.log('Using original file instead');
             }
         });
 
