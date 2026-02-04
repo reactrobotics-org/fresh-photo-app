@@ -779,6 +779,26 @@ app.post('/api/admin/remove-user-from-group', requireAdmin, async (req, res) => 
     }
 });
 
+// Get all entries for a specific group
+app.get('/api/admin/group-entries/:groupId', requireAdmin, async (req, res) => {
+    try {
+        const { groupId } = req.params;
+        const result = await pool.query(`
+            SELECT s.*, u.username, u.email, g.name as group_name
+            FROM submissions s
+            JOIN users u ON s.user_id = u.id
+            JOIN user_groups ug ON u.id = ug.user_id
+            JOIN groups g ON ug.group_id = g.id
+            WHERE ug.group_id = $1
+            ORDER BY s.created_at DESC
+        `, [groupId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error('Group entries fetch error:', error);
+        res.status(500).json({ error: 'Failed to fetch group entries' });
+    }
+});
+
 // Password reset endpoint
 app.post('/api/admin/reset-password', requireAdmin, async (req, res) => {
     try {
