@@ -92,28 +92,42 @@
 
         // Image compression function
         function compressImage(file, maxWidth = 1200, quality = 0.8) {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 const img = new Image();
 
                 img.onload = function() {
-                    // Calculate new dimensions
-                    let { width, height } = img;
-                    
-                    if (width > maxWidth) {
-                        height = (height * maxWidth) / width;
-                        width = maxWidth;
+                    try {
+                        // Calculate new dimensions
+                        let { width, height } = img;
+                        
+                        if (width > maxWidth) {
+                            height = (height * maxWidth) / width;
+                            width = maxWidth;
+                        }
+                        
+                        // Set canvas dimensions
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        // Draw and compress
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        canvas.toBlob((blob) => {
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error('Canvas toBlob failed'));
+                            }
+                        }, 'image/jpeg', quality);
+                    } catch (error) {
+                        reject(error);
                     }
-                    
-                    // Set canvas dimensions
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    // Draw and compress
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    canvas.toBlob(resolve, 'image/jpeg', quality);
+                };
+
+                img.onerror = function() {
+                    reject(new Error('Image load failed'));
                 };
 
                 img.src = URL.createObjectURL(file);
@@ -125,14 +139,19 @@
             const file = e.target.files[0];
             if (!file) return;
 
+            console.log('File selected:', file.name, file.type, file.size);
+
             // Show original file info
             const originalSizeKB = Math.round(file.size / 1024);
             document.getElementById('compressionInfo').innerHTML = 
                 `Original: ${originalSizeKB} KB - Compressing...`;
 
             try {
+                console.log('Starting compression...');
                 // Compress the image
                 compressedFile = await compressImage(file);
+                console.log('Compression complete:', compressedFile.size);
+                
                 const compressedSizeKB = Math.round(compressedFile.size / 1024);
                 const savings = Math.round(((file.size - compressedFile.size) / file.size) * 100);
 
