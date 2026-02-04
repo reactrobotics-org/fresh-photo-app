@@ -187,11 +187,16 @@
                 document.getElementById('compressionInfo').style.color = '#3498db';
                 
                 try {
-                    const convertedBlob = await heic2any({
+                    let convertedBlob = await heic2any({
                         blob: file,
                         toType: 'image/jpeg',
                         quality: 0.9
                     });
+                    
+                    // heic2any sometimes returns an array of blobs
+                    if (Array.isArray(convertedBlob)) {
+                        convertedBlob = convertedBlob[0];
+                    }
                     
                     // Create a new File object from the blob
                     file = new File([convertedBlob], file.name.replace(/\.heic$/i, '.jpg'), {
@@ -199,11 +204,11 @@
                         lastModified: Date.now()
                     });
                     
-                    console.log('HEIC converted successfully:', file.size);
+                    console.log('HEIC converted successfully:', file.size, file.type);
                 } catch (error) {
                     console.error('HEIC conversion failed:', error);
                     document.getElementById('compressionInfo').innerHTML = 
-                        `HEIC conversion failed. Please use JPG or PNG format.`;
+                        `HEIC conversion failed: ${error.message}. Please use JPG or PNG format.`;
                     document.getElementById('compressionInfo').style.color = '#e74c3c';
                     return;
                 }
@@ -215,7 +220,7 @@
                 `Original: ${originalSizeKB} KB - Compressing...`;
 
             try {
-                console.log('Starting compression...');
+                console.log('Starting compression...', file.type);
                 // Compress the image
                 compressedFile = await compressImage(file);
                 console.log('Compression complete:', compressedFile.size);
@@ -239,10 +244,10 @@
             } catch (error) {
                 console.error('Compression failed:', error);
                 document.getElementById('compressionInfo').innerHTML = 
-                    `Original: ${originalSizeKB} KB (compression failed, using original)`;
-                document.getElementById('compressionInfo').style.color = '#e74c3c';
+                    `Compression failed, using original file`;
+                document.getElementById('compressionInfo').style.color = '#f39c12';
                 
-                // Fallback to original file
+                // Fallback to original file (which is now converted from HEIC if needed)
                 compressedFile = file;
                 const reader = new FileReader();
                 reader.onload = function(e) {
@@ -250,6 +255,9 @@
                         '<img src="' + e.target.result + '" alt="Preview" style="max-width: 300px; max-height: 300px;">';
                 };
                 reader.readAsDataURL(file);
+                
+                // Show preview even if compression failed
+                console.log('Using original file instead');
             }
         });
 
